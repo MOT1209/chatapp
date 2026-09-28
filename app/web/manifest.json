@@ -1,12 +1,12 @@
 {
-    "name": "chat_app",
-    "short_name": "chat_app",
+    "name": "Chat App",
+    "short_name": "Chat App",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
+    "background_color": "#2563EB",
+    "theme_color": "#2563EB",
     "description": "Chat App — Alpha v0.0.1 cross-platform client",
-    "orientation": "portrait-primary",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
