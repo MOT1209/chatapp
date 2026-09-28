@@ -2,31 +2,32 @@
 
 **Status:** Alpha v0.0.1. The shape below is implemented, not just planned.
 
-**Open architectural question, unresolved as of this writing:** this repo has
-*two* client implementations — `frontend/` (React, web) and `app/` (Flutter,
-six platforms) — both built against the same contract, neither designated as
-"the" product. That happened because two build sessions for the same "Frontend
-Developer" role ran without visibility into each other. This document
-describes both as they exist; it does not resolve which one the project
-commits to. See the note at the top of the root `README.md`.
+**Decided:** `app/` (Flutter) is the canonical client. `frontend/` (React) is
+frozen, not deleted. Two build sessions for the same "Frontend Developer" role
+ran without visibility into each other and produced two full implementations
+of the same UI. The Alpha spec names the target platforms as *"Android, iOS,
+Windows, macOS, Linux, Web"* — `frontend/` structurally cannot cover more than
+the last one. See the note at the top of the root `README.md` for the full
+reasoning and what "frozen" does and doesn't mean.
 
 ## High-level
 
 ```
-┌───────────────┐                            ┌───────────────┐        SQL         ┌────────────┐
-│  frontend/    │ ─────────────────────────▶│               │ ──────────────────▶│            │
-│  React (web)  │                            │               │                    │            │
-└───────────────┘◀────────── WSS ───────────│   Backend     │                    │ PostgreSQL │
-                                              │  (Express)    │◀──── Prisma ──────│            │
-┌───────────────┐        HTTPS/REST          │               │                    │            │
-│  app/         │ ─────────────────────────▶│               │                    │            │
-│  Flutter      │◀────────── WSS ───────────└───────────────┘                    └────────────┘
-│  (6 platforms)│
+┌───────────────┐        HTTPS/REST          ┌───────────────┐        SQL         ┌────────────┐
+│  app/         │ ─────────────────────────▶│               │ ──────────────────▶│            │
+│  Flutter      │◀────────── WSS ───────────│   Backend     │                    │ PostgreSQL │
+│  (6 platforms,│                            │  (Express)    │◀──── Prisma ──────│            │
+│   canonical)  │                            │               │                    │            │
+└───────────────┘                            │               │                    │            │
+┌───────────────┐                            │               │                    │            │
+│  frontend/    │ ─────────────────────────▶│               │                    │            │
+│  React (web,  │◀────────── WSS ───────────└───────────────┘                    └────────────┘
+│   frozen)     │
 └───────────────┘
 ```
 
-- **`frontend/`**: React 19 SPA served by Vite in dev, static assets in production. Web only.
-- **`app/`**: Flutter client — Android, iOS, Windows, macOS, Linux, Web. Same contract, independent codebase, independent build tooling (not npm).
+- **`app/`** (canonical): Flutter client — Android, iOS, Windows, macOS, Linux, Web. Independent codebase, independent build tooling (not npm). This is where new frontend work goes.
+- **`frontend/`** (frozen): React 19 SPA served by Vite in dev, static assets in production. Web only. Still builds, still tested by CI, not receiving new features.
 - **Backend**: Node/Express HTTP API + `ws` WebSocket server, both on the same HTTP server/port. Has no knowledge of which frontend is calling it.
 - **Database**: PostgreSQL via Prisma. Migrations in `backend/prisma/migrations/`.
 - **Contract**: [`api-contract.md`](./api-contract.md) is the single source of truth between all workspaces — both frontends and the backend.
@@ -35,9 +36,9 @@ commits to. See the note at the top of the root `README.md`.
 
 ```
 chatapp/
-├── frontend/           React + TypeScript + Vite (web)
-├── app/                Flutter (Android, iOS, Windows, macOS, Linux, Web)
-├── backend/            Node + Express + TypeScript + Prisma
+├── app/                 Flutter (Android, iOS, Windows, macOS, Linux, Web) — canonical
+├── backend/             Node + Express + TypeScript + Prisma
+├── frontend/            React + TypeScript + Vite (web only, frozen)
 ├── docs/                contract + guides
 └── .github/             CI + templates
 ```

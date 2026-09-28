@@ -1,5 +1,10 @@
 # Development guide
 
+> `app/` (Flutter) is the canonical client — see the note at the top of the
+> root `README.md`. `frontend/` (React) is frozen: still builds, still tested,
+> not receiving new features. This guide covers `backend/` and `frontend/` in
+> detail since they share npm tooling; for `app/`, see `app/README.md`.
+
 ## Prerequisites
 
 - Node.js ≥ 20 (managed via `.nvmrc` if you use nvm)

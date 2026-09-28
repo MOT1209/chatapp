@@ -7,19 +7,30 @@ one Frontend/UI.
 email delivery, no load testing. It is the first version where a full
 register → search → chat → realtime flow actually works end to end.
 
-> **Two frontends currently exist in this repo: `frontend/` (React, web-only) and
-> `app/` (Flutter, six platforms).** Both implement the same chat UI against the
-> same `docs/api-contract.md`. This was not a planned outcome — it happened
-> because two independent build sessions ran against the same "Frontend
-> Developer" role without one seeing the other's work in progress. **Nobody has
-> decided which one is the product going forward.** Until that decision is made:
-> treat both as real and maintained, don't delete either without asking, and be
-> aware that some setup steps below now exist twice (once per client).
+> **Decided: `app/` (Flutter) is the canonical client. `frontend/` (React) is
+> frozen, not deleted.** Two independent build sessions ran against the same
+> "Frontend Developer" role without seeing each other's work, producing two
+> full implementations of the same chat UI. The call: this project's own spec
+> names the target platforms as *"Android, iOS, Windows, macOS, Linux, Web"* —
+> `app/README.md` describes itself in those exact words; `frontend/` can only
+> ever cover the last one. That's not a style preference, it's the target
+> platform list only one of the two can structurally satisfy.
+>
+> What "frozen" means in practice: `frontend/` stays in the repo, its CI keeps
+> running so it doesn't silently rot, and nobody has deleted a single line of
+> it. It does **not** get new features — new work targets `app/`. If someone
+> with real product authority wants a dedicated web client alongside the
+> Flutter app later (a legitimate strategy many chat products use — see
+> WhatsApp Web, Telegram Web), `frontend/` is sitting there ready to be revived
+> rather than rebuilt from scratch. This is a reversible call, made from the
+> evidence in this repo, not an irreversible deletion — if it's wrong, undoing
+> it costs nothing.
 
 ## What Alpha v0.0.1 delivers
 
-- Two working frontends against the same contract (see the note above):
-  `frontend/` (React, web) and `app/` (Flutter, Android/iOS/Windows/macOS/Linux/Web).
+- `app/` — the canonical client (Flutter, Android/iOS/Windows/macOS/Linux/Web).
+  `frontend/` (React, web) also works and stays in the repo, frozen — see the
+  note above.
 - Full backend: authentication (register/login/refresh/logout/forgot-reset
   password), user search and profiles, direct conversations, messages with
   idempotent send and cursor-paginated history, read receipts, basic message
@@ -38,15 +49,14 @@ register → search → chat → realtime flow actually works end to end.
 Explicitly **not** in Alpha v0.0.1: groups, file sharing, voice messages, video
 calls, AI features, notifications, message editing, real email delivery for
 password reset (the token is logged to the console instead — see
-`docs/api-contract.md` §6.6), and — see above — a decision on which frontend
-is the actual product.
+`docs/api-contract.md` §6.6).
 
 ## Architecture
 
 ```
 chatapp/
-├── frontend/           React + TypeScript + Vite + Tailwind (web)
-├── app/                Flutter (Android, iOS, Windows, macOS, Linux, Web)
+├── frontend/           React + TypeScript + Vite + Tailwind (web only, frozen)
+├── app/                Flutter (Android, iOS, Windows, macOS, Linux, Web) — canonical client
 ├── backend/             Node + Express + TypeScript + Prisma + PostgreSQL
 ├── docs/                contract, architecture, development, git workflow, UI plan
 ├── .github/             workflows, PR + issue templates
@@ -60,8 +70,8 @@ See [`docs/architecture.md`](docs/architecture.md).
 
 ## Tech stack
 
-- **Frontend (`frontend/`)** — React 19, TypeScript 5.9, Vite 8, Tailwind 4, TanStack Query 5, React Router 7, Zod, Zustand, RTL Arabic-first UI.
-- **App (`app/`)** — Flutter (Dart SDK ^3.8), `http`, `web_socket_channel`, `shared_preferences`, `provider`, `uuid`, `intl`. See `app/README.md`.
+- **App (`app/`, canonical)** — Flutter (Dart SDK ^3.8), `http`, `web_socket_channel`, `shared_preferences`, `provider`, `uuid`, `intl`. See `app/README.md`.
+- **Frontend (`frontend/`, frozen)** — React 19, TypeScript 5.9, Vite 8, Tailwind 4, TanStack Query 5, React Router 7, Zod, Zustand, RTL Arabic-first UI.
 - **Backend** — Node ≥ 20, Express 4, TypeScript 5.7, Prisma 5, PostgreSQL 14+, Zod, Helmet, CORS, JWT (`jsonwebtoken`), bcrypt (`bcryptjs`), `express-rate-limit`, `ws`.
 - **CI** — GitHub Actions: `frontend.yml`, `backend.yml` (typecheck, lint, tests, build; backend adds Prisma validate + migrate deploy + Postgres service container), `app.yml` (Flutter analyze/test/build).
 
@@ -165,7 +175,7 @@ Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
   `protected: false` reading from that endpoint alone doesn't mean the ruleset
   isn't working. Confirm actual enforcement at Settings → Rules → Rulesets
   directly, or by observing a real push/PR get blocked.
-- Branch prefixes: `frontend/*`, `app/*`, `backend/*`, `feature/*`, `fix/*`, `chore/*`.
+- Branch prefixes: `app/*`, `backend/*`, `frontend/*` (fixes only — see the canonical-client note above), `feature/*`, `fix/*`, `chore/*`.
 - Every change opens a PR; CI must be green before merge.
 - Contract changes update `docs/api-contract.md` in the same PR.
 - Never commit `.env` or any secret.
@@ -181,10 +191,8 @@ Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 ## Roadmap
 
 - **Phase 0 — Foundation.** ✅ Scaffolding, docs, CI, contract.
-- **Alpha v0.0.1 (this).** ✅ Authentication → users → conversations → messages → realtime. First working E2E flow, on both `frontend/` and `app/`.
-- **Immediate open items (not a feature, but blocking a clean Post-Alpha):**
-  - Decide whether `frontend/` and `app/` are both staying, and if so what each is *for* — see the note near the top of this file.
-- **Post-Alpha.** Groups, file upload, presence for group chats, avatars, message editing, real email delivery.
+- **Alpha v0.0.1 (this).** ✅ Authentication → users → conversations → messages → realtime. First working E2E flow, verified on `app/` (canonical) and `frontend/` (frozen).
+- **Post-Alpha.** Groups, file upload, presence for group chats, avatars, message editing, real email delivery. Targets `app/`.
 - **Later.** Voice messages, video calls, AI features, notifications.
 
 ## Documentation
