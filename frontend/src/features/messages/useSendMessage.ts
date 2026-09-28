@@ -5,7 +5,7 @@ import { conversationsApi } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { chatSocket } from "@/lib/socket";
 import type { Message, MessageDelivery } from "@/lib/types";
-import type { MessagesCache } from "@/features/realtime/RealtimeProvider";
+import type { MessagesCache } from "@/features/realtime/cache";
 import { useSession } from "@/features/auth/SessionProvider";
 
 /** Prefix marking a message that exists only on this device. */

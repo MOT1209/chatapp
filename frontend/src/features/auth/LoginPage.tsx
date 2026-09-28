@@ -31,7 +31,8 @@ export function LoginPage() {
     try {
       await login(values);
       // `replace` so the back button does not return to the login form.
-      navigate("/chats", { replace: true });
+      // `navigate` returns a promise under a data router, so it is explicitly ignored.
+      void navigate("/chats", { replace: true });
     } catch (error) {
       setFormError(applyApiFieldErrors(error, setError) ?? "تعذّر تسجيل الدخول.");
     }

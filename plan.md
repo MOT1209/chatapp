@@ -28,18 +28,33 @@
 
 ## 2. المتبقي — مرتّب حسب الأولوية
 
-### المرحلة A — التحقق والجودة (يجب قبل أي PR)
+### المرحلة A — التحقق والجودة
 
-- [ ] `npx eslint .` يمر نظيفاً — **لم يُشغّل بعد**
-- [ ] كتابة اختبارات Vitest للـ logic:
-  - [ ] `format.ts` — الطوابع، `formatDayDivider`، `formatUnreadCount` (الجمع العربي)، `initials`
-  - [ ] `api-error.ts` — `isRetryableError` على الأنواع المختلفة
-  - [ ] `RealtimeProvider` — `flattenMessages` + `upsertMessage` (إدراج، تحديث، ترتيب)
-  - [ ] `useTypingStore` — انتهاء الصلاحية بعد 3s
-  - [ ] `schemas.ts` — قواعد Zod مقابل الـ contract
-- [ ] اختبار مكوّن (`MessageBubble`، `Avatar`، `EmptyState`) بـ Testing Library
-- [ ] تحسين الحزمة: `565 kB` أكبر من حد 500 kB. تقسيم بـ `React.lazy` للصفحات Auth و Profile، أو `manualChunks`
+- [x] `npx eslint .` يمر نظيفاً (فعّل typed linting عبر `projectService` ليعمل `no-floating-promises`)
+- [x] إصلاحات مطلوبة من اللينت:
+  - [x] `navigate()` يُعيد promise في React Router 7 → `void` في 3 ملفات
+  - [x] كتابة ref أثناء الـ render في `SessionProvider` → نُقلت إلى effect
+  - [x] `setState` داخل effect في `MessageInput` و`ProfilePanel` → نُقل إلى render (النمط الذي توثّقه React)
+  - [x] تصدير helpers من ملف component في `RealtimeProvider` → نُقلت إلى `features/realtime/cache.ts`
+- [x] اختبارات Vitest — **71 اختبار، كلها تمر**:
+  - [x] `format.test.ts` — الطوابع، `formatDayDivider`، `formatUnreadCount` (الجمع العربي)، `initials`، `avatarHue`
+  - [x] `api-error.test.ts` — `isRetryableError` على كل الحالات، وحفظ رسالة الـ backend
+  - [x] `cache.test.ts` — `flattenMessages` · `upsertMessage` (إدراج/ترتيب/مطابقة clientId) · `patchConversationsList`
+  - [x] `useTypingStore.test.ts` — انتهاء الصلاحية بعد 3s، وبقاء المؤشر أثناء الكتابة
+  - [x] `schemas.test.ts` — قواعد Zod مقابل بنود الـ contract
+- [ ] اختبارات مكوّن (`MessageBubble`، `Avatar`، `EmptyState`) بـ Testing Library
+- [ ] تحسين الحزمة: `566 kB` (175 kB gzip). تقسيم بـ `React.lazy` للصفحات Auth و Profile
+- [x] إصلاح pool في Vitest: `forks` كان يفشل على Windows من مسار فيه مسافات → `threads`
 - [ ] تشغيل `npm run dev` وفحص RTL يدوياً على 3 مقاسات
+
+**حالة التحقق الآن:**
+
+| البوابة | الأمر | النتيجة |
+| --- | --- | --- |
+| Typecheck | `npx tsc -b --noEmit` | ✅ exit 0 |
+| Lint | `npx eslint .` | ✅ exit 0 |
+| Unit tests | `npx vitest run` | ✅ 71/71 |
+| Build | `npx vite build` | ✅ 566 kB → 175 kB gzip |
 
 ### المرحلة B — ربط الـ Backend (بعد موافقة المطور الآخر على الـ contract)
 
@@ -82,11 +97,12 @@
 | المشكلة | التفصيل | الأثر |
 | --- | --- | --- |
 | **لا يوجد backend بعد** | الواجهة مبنية على الـ contract وليس على API حقيقي | كل تدفق REST/WS غير مُتحقّق منه فعلياً. **هذه أهم نقطة** |
-| **لم يُشغّل ESLint بعد** | لم يُتحقّق من نظافة اللينت | قد تظهر أخطاء عند أول تشغيل |
-| **حجم الحزمة 565 kB** | حد Vite_warning | أداء على الهاتف — يحتاج code splitting |
+| **حجم الحزمة 566 kB** | حد Vite_warning (500 kB) | أداء على الهاتف — يحتاج code splitting |
 | **localStorage للتوكنات** | متفق عليه في الـ contract لتبسيط ما بعد التطوير | ثغرة XSS. موثّق في `token-store.ts` |
 | **قائمة الرسائل غير مُvirtualized** | كل الرسائل في الـ DOM | مشكلة مع محادثات طويلة جداً. مقبول لـ v1، noted للاحتفاظ |
-| **الاختبارات غير موجودة** | لا Vitest ولا Playwright | لا حماية من الانحدار |
+| **لا اختبارات مكوّنات** | لا Testing Library بعد | الـ logic مغطّى بـ 71 اختبار، لكن العرض غير مغطّى |
+| **لا اختبارات E2E بعد** | لا Playwright بعد | التدفقات الكاملة غير مُتحقّق منها آلياً |
+| **مسار المجلد فيه مسافات** | كسر Vitest و Playwright افتراضياً على Windows | تم حلّه لـ Vitest بـ `pool: threads` · Playwright يحتاج تحقّق |
 
 ---
 

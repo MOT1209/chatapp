@@ -48,9 +48,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const queryClient = useQueryClient();
 
-  // Read through a ref so the refresh handler never closes over stale state.
+  // Read through a ref so the `onSessionChange` handler, which is registered once,
+  // still sees the current status. Synced in an effect because writing a ref during
+  // render is unsafe: React may discard that render and run another.
   const statusRef = useRef<SessionStatus>("loading");
-  statusRef.current = status;
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   const signOutLocally = useCallback(() => {
     tokenStore.clear();

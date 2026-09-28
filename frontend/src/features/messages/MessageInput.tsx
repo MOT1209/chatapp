@@ -24,12 +24,21 @@ export function MessageInput({ conversationId, disabled = false }: MessageInputP
 
   const canSend = value.trim().length > 0 && !isSending;
 
-  /* Grow with the content, then scroll. Reset on every conversation change. */
-  useEffect(() => {
+  /**
+   * Reset when the conversation changes, during render rather than in an effect.
+   *
+   * Setting state in an effect here would render the composer's previous draft against
+   * the new conversation for one frame. React documents adjusting state during render
+   * as the correct way to react to a changed prop, and it avoids the extra pass.
+   */
+  const [lastConversationId, setLastConversationId] = useState(conversationId);
+  if (lastConversationId !== conversationId) {
+    setLastConversationId(conversationId);
     setValue("");
     setIsSending(false);
-  }, [conversationId]);
+  }
 
+  /* Grow with the content, then scroll. Writing to the DOM is a legitimate effect. */
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) {

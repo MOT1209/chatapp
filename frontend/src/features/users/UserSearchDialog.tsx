@@ -43,7 +43,7 @@ export function UserSearchDialog({
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations() });
       setQuery("");
       onClose();
-      navigate(`/chats/${conversation.id}`);
+      void navigate(`/chats/${conversation.id}`);
     },
   });
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,17 +35,22 @@ export function ProfilePanel({ userId, currentUser }: ProfilePanelProps) {
   const isOwnProfile = userId === null;
   const [isEditing, setIsEditing] = useState(false);
 
+  /**
+   * Close the editor when the profile changes, during render rather than in an effect.
+   * Leaving it open would show a form pre-filled with the previous user's details.
+   */
+  const [lastUserId, setLastUserId] = useState(userId);
+  if (lastUserId !== userId) {
+    setLastUserId(userId);
+    setIsEditing(false);
+  }
+
   const profileQuery = useQuery({
     queryKey: queryKeys.user(userId ?? currentUser?.id ?? "me"),
     queryFn: ({ signal }) => (isOwnProfile ? Promise.resolve(currentUser!) : usersApi.byId(userId!, signal)),
     enabled: isOwnProfile ? Boolean(currentUser) : Boolean(userId),
     staleTime: 30_000,
   });
-
-  // Editing belongs to the signed-in user only, and starts closed.
-  useEffect(() => {
-    setIsEditing(false);
-  }, [userId]);
 
   const user = profileQuery.data ?? (isOwnProfile ? currentUser : null);
 

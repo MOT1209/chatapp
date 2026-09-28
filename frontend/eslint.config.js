@@ -13,6 +13,12 @@ export default tseslint.config(
     languageOptions: {
       ecmaVersion: 2022,
       globals: { ...globals.browser, ...globals.es2022 },
+      parserOptions: {
+        // `no-floating-promises` needs type information to know a call returns a
+        // promise. `projectService` resolves the tsconfig without naming files here.
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     plugins: {
       "react-hooks": reactHooks,
@@ -42,6 +48,16 @@ export default tseslint.config(
 
       "eqeqeq": ["error", "smart"],
       "no-console": ["warn", { allow: ["warn", "error"] }],
+    },
+  },
+
+  {
+    // A provider and its matching hook belong in one file. Splitting them would force
+    // readers to open two files to learn how to read the session, so this is allowed
+    // deliberately rather than worked around.
+    files: ["**/*Provider.tsx"],
+    rules: {
+      "react-refresh/only-export-components": "off",
     },
   },
 

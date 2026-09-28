@@ -3,7 +3,7 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { conversationsApi } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { MessagesPage } from "@/lib/types";
-import type { MessagesCache } from "@/features/realtime/RealtimeProvider";
+import type { MessagesCache } from "@/features/realtime/cache";
 
 /**
  * Message history for one conversation, oldest first.

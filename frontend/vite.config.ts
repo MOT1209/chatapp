@@ -22,6 +22,11 @@ export default defineConfig({
     css: false,
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules", "dist", "tests/e2e"],
+    // The default `forks` pool timed out starting workers on Windows from a path
+    // containing spaces. `threads` is reliable here and is fine for these tests,
+    // which are pure logic with no child processes.
+    pool: "threads",
+    testTimeout: 10_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

@@ -9,7 +9,7 @@ import { useSendMessage, type CachedMessage } from "./useSendMessage";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { MessageSkeleton } from "@/components/Skeleton";
-import { flattenMessages } from "@/features/realtime/RealtimeProvider";
+import { flattenMessages } from "@/features/realtime/cache";
 import { useSession } from "@/features/auth/SessionProvider";
 import { typingUserIdsIn, useTypingStore } from "@/stores/useTypingStore";
 import { formatDayDivider } from "@/lib/format";
@@ -105,7 +105,7 @@ export function MessageList({ conversationId, peerName }: MessageListProps) {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <ErrorState
           error={messagesQuery.error}
-          title="تعذّر تحميل الرسائل"
+          title="طھط¹ط°ظ‘ط± طھط­ظ…ظٹظ„ ط§ظ„ط±ط³ط§ط¦ظ„"
           onRetry={() => void messagesQuery.refetch()}
           isRetrying={messagesQuery.isFetching}
           className="h-full"
@@ -129,7 +129,7 @@ export function MessageList({ conversationId, peerName }: MessageListProps) {
               onClick={() => void messagesQuery.fetchNextPage()}
               loading={messagesQuery.isFetchingNextPage}
             >
-              رسائل أقدم
+              ط±ط³ط§ط¦ظ„ ط£ظ‚ط¯ظ…
             </Button>
           </div>
         ) : null}
@@ -160,7 +160,7 @@ export function MessageList({ conversationId, peerName }: MessageListProps) {
           )}
         >
           <ArrowDown className="size-3.5" />
-          {unseenBelow} جديدة
+          {unseenBelow} ط¬ط¯ظٹط¯ط©
         </button>
       ) : null}
     </div>

@@ -35,7 +35,7 @@ export function RegisterPage() {
         email: values.email,
         password: values.password,
       });
-      navigate("/chats", { replace: true });
+      void navigate("/chats", { replace: true });
     } catch (error) {
       setFormError(applyApiFieldErrors(error, setError) ?? "تعذّر إنشاء الحساب.");
     }

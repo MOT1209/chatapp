@@ -5,7 +5,7 @@ import { ArrowRight, MessageCircleQuestion, WifiOff } from "lucide-react";
 import { MessageList } from "@/features/messages/MessageList";
 import { MessageInput } from "@/features/messages/MessageInput";
 import { useConversations } from "@/features/conversations/useConversations";
-import { useMarkConversationRead } from "@/features/realtime/RealtimeProvider";
+import { useMarkConversationRead } from "@/features/realtime/cache";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { Skeleton } from "@/components/Skeleton";
@@ -72,15 +72,15 @@ export function ChatView() {
         <MobileBackBar />
         <EmptyState
           icon={MessageCircleQuestion}
-          title="المحادثة غير متاحة"
-          description="ربما حُذفت، أو لا تملك صلاحية الوصول إليها."
+          title="ط§ظ„ظ…ط­ط§ط¯ط«ط© ط؛ظٹط± ظ…طھط§ط­ط©"
+          description="ط±ط¨ظ…ط§ ط­ظڈط°ظپطھطŒ ط£ظˆ ظ„ط§ طھظ…ظ„ظƒ طµظ„ط§ط­ظٹط© ط§ظ„ظˆطµظˆظ„ ط¥ظ„ظٹظ‡ط§."
           className="h-full"
           action={
             <Link
               to="/chats"
               className="text-xs font-medium text-accent hover:underline"
             >
-              العودة إلى المحادثات
+              ط§ظ„ط¹ظˆط¯ط© ط¥ظ„ظ‰ ط§ظ„ظ…ط­ط§ط¯ط«ط§طھ
             </Link>
           }
         />
@@ -96,7 +96,7 @@ export function ChatView() {
         {/* Back arrow, mobile only. The sidebar is a separate pane from tablet up. */}
         <Link
           to="/chats"
-          aria-label="العودة إلى المحادثات"
+          aria-label="ط§ظ„ط¹ظˆط¯ط© ط¥ظ„ظ‰ ط§ظ„ظ…ط­ط§ط¯ط«ط§طھ"
           className="-ms-1 rounded-md p-1.5 text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg md:hidden"
         >
           <ArrowRight className="size-5" />
@@ -129,7 +129,7 @@ export function ChatView() {
           className="flex items-center gap-2 border-b border-border bg-warning/12 px-3 py-1.5 text-[11px] font-medium text-warning"
         >
           <WifiOff className="size-3.5 shrink-0" />
-          <span className="animate-fade-in">جارٍ إعادة الاتصال…</span>
+          <span className="animate-fade-in">ط¬ط§ط±ظچ ط¥ط¹ط§ط¯ط© ط§ظ„ط§طھطµط§ظ„â€¦</span>
         </div>
       ) : null}
 
@@ -150,7 +150,7 @@ function MobileBackBar() {
     <div className="border-b border-border bg-surface px-2 py-2 md:hidden">
       <Link
         to="/chats"
-        aria-label="العودة إلى المحادثات"
+        aria-label="ط§ظ„ط¹ظˆط¯ط© ط¥ظ„ظ‰ ط§ظ„ظ…ط­ط§ط¯ط«ط§طھ"
         className={cn("inline-flex items-center gap-1.5 rounded-md p-1.5 text-fg-muted")}
       >
         <ArrowRight className="size-5" />
