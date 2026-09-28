@@ -157,10 +157,14 @@ npm run typecheck   # both typecheckers
 
 Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 
-- `main` is *meant* to be protected — no direct pushes. **As of Alpha v0.0.1 this
-  is not yet enforced on GitHub** (a direct `git push` to `main` currently
-  succeeds). Treat the no-direct-push rule as binding anyway; enabling the actual
-  branch protection setting is an open item — see the Roadmap.
+- `main` is protected — no direct pushes. Enforced via a GitHub **Ruleset**
+  (Settings → Rules → Rulesets), not the classic Branch protection rules page.
+  Note for whoever checks this next: GitHub's `GET /repos/.../branches/main`
+  API — what an automated check would naturally look at — does not reliably
+  reflect ruleset-based protection the way it reflects classic rules, so a
+  `protected: false` reading from that endpoint alone doesn't mean the ruleset
+  isn't working. Confirm actual enforcement at Settings → Rules → Rulesets
+  directly, or by observing a real push/PR get blocked.
 - Branch prefixes: `frontend/*`, `app/*`, `backend/*`, `feature/*`, `fix/*`, `chore/*`.
 - Every change opens a PR; CI must be green before merge.
 - Contract changes update `docs/api-contract.md` in the same PR.
@@ -180,7 +184,6 @@ Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 - **Alpha v0.0.1 (this).** ✅ Authentication → users → conversations → messages → realtime. First working E2E flow, on both `frontend/` and `app/`.
 - **Immediate open items (not a feature, but blocking a clean Post-Alpha):**
   - Decide whether `frontend/` and `app/` are both staying, and if so what each is *for* — see the note near the top of this file.
-  - Enable actual branch protection on `main` in GitHub repo settings (Settings → Branches → require PR + passing checks before merge).
 - **Post-Alpha.** Groups, file upload, presence for group chats, avatars, message editing, real email delivery.
 - **Later.** Voice messages, video calls, AI features, notifications.
 
