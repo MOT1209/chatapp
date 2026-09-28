@@ -1,0 +1,259 @@
+@import "tailwindcss";
+
+/* Class-based dark mode, toggled by adding `.dark` to <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens.
+ *
+ * `@theme inline` keeps the Tailwind utility names stable (bg-surface, text-fg-muted,
+ * border-border) while the values behind them are plain CSS variables. That means a
+ * theme change is just a variable swap, with no duplicated utility classes.
+ */
+@theme inline {
+  /* Surfaces */
+  --color-bg: var(--app-bg);
+  --color-surface: var(--app-surface);
+  --color-surface-2: var(--app-surface-2);
+  --color-surface-3: var(--app-surface-3);
+
+  /* Lines */
+  --color-border: var(--app-border);
+  --color-border-strong: var(--app-border-strong);
+
+  /* Text */
+  --color-fg: var(--app-fg);
+  --color-fg-muted: var(--app-fg-muted);
+  --color-fg-subtle: var(--app-fg-subtle);
+  --color-fg-inverted: var(--app-fg-inverted);
+
+  /* Accent */
+  --color-accent: var(--app-accent);
+  --color-accent-hover: var(--app-accent-hover);
+  --color-accent-soft: var(--app-accent-soft);
+  --color-accent-fg: var(--app-accent-fg);
+
+  /* Status */
+  --color-success: var(--app-success);
+  --color-danger: var(--app-danger);
+  --color-danger-soft: var(--app-danger-soft);
+  --color-warning: var(--app-warning);
+
+  /* Chat bubbles */
+  --color-bubble-in: var(--app-bubble-in);
+  --color-bubble-out: var(--app-bubble-out);
+  --color-bubble-out-fg: var(--app-bubble-out-fg);
+
+  /* Typography */
+  --font-sans: "Cairo Variable", "Cairo", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  /* Radii */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Shadows. Kept soft and low-contrast so they read as depth, not as outlines. */
+  --shadow-sm: 0 1px 2px 0 rgb(16 24 40 / 0.05);
+  --shadow-md: 0 4px 8px -2px rgb(16 24 40 / 0.08), 0 2px 4px -2px rgb(16 24 40 / 0.05);
+  --shadow-lg: 0 12px 16px -4px rgb(16 24 40 / 0.1), 0 4px 6px -2px rgb(16 24 40 / 0.05);
+
+  /* Motion. Only ever transform and opacity, so nothing triggers layout. */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --animate-fade-in: fade-in var(--transition-base) both;
+  --animate-slide-up: slide-up var(--transition-base) both;
+  --animate-slide-from-end: slide-from-end var(--transition-base) both;
+}
+
+:root {
+  --app-bg: oklch(97.8% 0.003 250);
+  --app-surface: oklch(100% 0 0);
+  --app-surface-2: oklch(98.2% 0.003 250);
+  --app-surface-3: oklch(95.5% 0.005 250);
+
+  --app-border: oklch(92.5% 0.006 250);
+  --app-border-strong: oklch(87% 0.008 250);
+
+  --app-fg: oklch(24% 0.015 265);
+  --app-fg-muted: oklch(50% 0.015 265);
+  --app-fg-subtle: oklch(65% 0.012 265);
+  --app-fg-inverted: oklch(100% 0 0);
+
+  --app-accent: oklch(51% 0.19 275);
+  --app-accent-hover: oklch(45% 0.19 275);
+  --app-accent-soft: oklch(94% 0.03 275);
+  --app-accent-fg: oklch(100% 0 0);
+
+  --app-success: oklch(62% 0.15 155);
+  --app-danger: oklch(58% 0.2 25);
+  --app-danger-soft: oklch(95% 0.03 25);
+  --app-warning: oklch(72% 0.15 75);
+
+  --app-bubble-in: oklch(100% 0 0);
+  --app-bubble-out: oklch(51% 0.19 275);
+  --app-bubble-out-fg: oklch(100% 0 0);
+
+  color-scheme: light;
+}
+
+.dark {
+  --app-bg: oklch(16% 0.015 265);
+  --app-surface: oklch(20.5% 0.017 265);
+  --app-surface-2: oklch(24% 0.018 265);
+  --app-surface-3: oklch(28% 0.02 265);
+
+  --app-border: oklch(28% 0.02 265);
+  --app-border-strong: oklch(36% 0.022 265);
+
+  --app-fg: oklch(96% 0.004 265);
+  --app-fg-muted: oklch(72% 0.012 265);
+  --app-fg-subtle: oklch(58% 0.014 265);
+  --app-fg-inverted: oklch(20% 0.015 265);
+
+  --app-accent: oklch(68% 0.16 275);
+  --app-accent-hover: oklch(74% 0.15 275);
+  --app-accent-soft: oklch(30% 0.06 275);
+  --app-accent-fg: oklch(18% 0.02 275);
+
+  --app-success: oklch(70% 0.15 155);
+  --app-danger: oklch(68% 0.18 25);
+  --app-danger-soft: oklch(30% 0.07 25);
+  --app-warning: oklch(78% 0.14 75);
+
+  --app-bubble-in: oklch(26% 0.018 265);
+  --app-bubble-out: oklch(52% 0.17 275);
+  --app-bubble-out-fg: oklch(98% 0.004 275);
+
+  color-scheme: dark;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enters from the inline-end, which is the left in RTL. Direction-agnostic by design. */
+@keyframes slide-from-end {
+  from {
+    opacity: 0;
+    transform: translateX(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-0.25rem);
+    opacity: 1;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Stops the whole page rubber-banding when a chat list is scrolled to its end. */
+    overscroll-behavior: none;
+  }
+
+  /* One consistent focus ring everywhere, keyboard-only. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+
+  ::selection {
+    background-color: var(--color-accent-soft);
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-border-strong);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-fg-subtle);
+  }
+}
+
+@layer utilities {
+  /* Keeps a scroll container from jumping to the top when its content changes. */
+  .scroll-anchor {
+    overflow-anchor: auto;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .typing-dot {
+    animation: typing-bounce 1.2s ease-in-out infinite;
+  }
+}
+
+/* Respect the OS setting. All decorative motion collapses to nothing. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
