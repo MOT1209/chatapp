@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -7,19 +8,21 @@ import 'core/chat_api.dart';
 import 'core/config.dart';
 import 'core/realtime_client.dart';
 import 'core/token_storage.dart';
-import 'state/theme_controller.dart';
+import 'state/settings_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  final tokens = SharedPrefsTokenStorage(prefs);
+  final isMobile =
+      !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
+  final TokenStorage tokens = isMobile ? SecureTokenStorage() : SharedPrefsTokenStorage(prefs);
   final client = ApiClient(baseUrl: AppConfig.apiUrl, tokens: tokens);
 
   runApp(
     ChatApp(
       api: ChatApi(client),
       realtime: RealtimeClient(url: Uri.parse(AppConfig.wsUrl), tokens: tokens, refreshTokens: client.refreshTokens),
-      themeController: ThemeController(prefs),
+      settings: SettingsController(prefs),
     ),
   );
 }

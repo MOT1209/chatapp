@@ -19,7 +19,9 @@ class ChatController extends ChangeNotifier {
     required this.me,
     required Conversation conversation,
     this.onMessage,
+    this.onMessageUpdated,
     this.onRead,
+    this.sendFrame,
     Uuid uuid = const Uuid(),
   }) : _api = api,
        _uuid = uuid,
@@ -36,8 +38,26 @@ class ChatController extends ChangeNotifier {
   /// Mirrors every message into the conversation list (last message preview, ordering).
   final void Function(Message message)? onMessage;
 
+  /// Mirrors in-place changes (deletion) without reordering the conversation list.
+  final void Function(Message message)? onMessageUpdated;
+
   /// Called after the conversation is marked read, so the list can clear its badge.
   final void Function(String conversationId)? onRead;
+
+  /// Sends a transient realtime frame (typing). Null disables typing signals.
+  final void Function(String type, Map<String, dynamic> payload)? sendFrame;
+
+  static const _typingThrottle = Duration(seconds: 2);
+  static const _typingIdle = Duration(seconds: 2);
+  static const _remoteTypingTtl = Duration(seconds: 3);
+
+  bool _typingSent = false;
+  DateTime? _typingSentAt;
+  Timer? _typingIdleTimer;
+
+  bool _participantTyping = false;
+  bool get participantTyping => _participantTyping;
+  Timer? _remoteTypingTimer;
 
   late final StreamSubscription<ServerFrame> _subscription;
   bool _disposed = false;
@@ -97,9 +117,53 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  /// Contract §4.3: at most one `typing: true` per 2s, and a final `false` after 2s idle.
+  void onComposing(bool hasText) {
+    if (sendFrame == null) return;
+    if (!hasText) {
+      _stopTyping();
+      return;
+    }
+    final now = DateTime.now();
+    if (!_typingSent || now.difference(_typingSentAt!) >= _typingThrottle) {
+      sendFrame!('typing', {'conversationId': conversationId, 'isTyping': true});
+      _typingSent = true;
+      _typingSentAt = now;
+    }
+    _typingIdleTimer?.cancel();
+    _typingIdleTimer = Timer(_typingIdle, _stopTyping);
+  }
+
+  void _stopTyping() {
+    _typingIdleTimer?.cancel();
+    if (!_typingSent) return;
+    _typingSent = false;
+    sendFrame?.call('typing', {'conversationId': conversationId, 'isTyping': false});
+  }
+
+  /// Contract §3.4.1. Throws [ApiException] so the UI can explain a refusal.
+  Future<void> delete(Message message) async {
+    if (message.isLocal || message.isDeleted || message.sender.id != me.id) return;
+    await _api.deleteMessage(conversationId, message.id);
+    final deleted = Message(
+      id: message.id,
+      clientId: message.clientId,
+      conversationId: message.conversationId,
+      sender: message.sender,
+      body: '',
+      createdAt: message.createdAt,
+      status: message.status,
+      readAt: message.readAt,
+      deletedAt: DateTime.now().toUtc(),
+    );
+    _upsert(deleted, force: true);
+    onMessageUpdated?.call(deleted);
+  }
+
   Future<void> send(String text) async {
     final body = text.trim();
     if (body.isEmpty) return;
+    _stopTyping();
     final optimistic = Message.optimistic(clientId: _uuid.v4(), conversationId: conversationId, sender: me, body: body);
     _upsert(optimistic);
     await _deliver(optimistic);
@@ -130,7 +194,13 @@ class ChatController extends ChangeNotifier {
         final message = Message.fromJson(p['message'] as Map<String, dynamic>);
         if (message.conversationId != conversationId) return;
         _upsert(message);
-        if (frame.type == 'message:new' && message.sender.id != me.id) _markRead();
+        if (frame.type == 'message:new' && message.sender.id != me.id) {
+          _setParticipantTyping(false);
+          _markRead();
+        }
+      case 'typing':
+        if (p['conversationId'] != conversationId || p['userId'] != _participant.id) return;
+        _setParticipantTyping(p['isTyping'] == true);
       case 'read':
         if (p['conversationId'] != conversationId || p['userId'] == me.id) return;
         _applyReadReceipt(p['messageId'] as String?, p['readAt'] as String?);
@@ -146,6 +216,15 @@ class ChatController extends ChangeNotifier {
         // Reconnected: pull the newest page to cover anything missed while offline.
         if (!_loading) unawaited(_refreshNewest());
     }
+  }
+
+  void _setParticipantTyping(bool typing) {
+    _remoteTypingTimer?.cancel();
+    // Typing is never cached and clears itself if the "stop" frame is lost (§4.6).
+    if (typing) _remoteTypingTimer = Timer(_remoteTypingTtl, () => _setParticipantTyping(false));
+    if (_participantTyping == typing) return;
+    _participantTyping = typing;
+    _notify();
   }
 
   Future<void> _refreshNewest() async {
@@ -189,7 +268,10 @@ class ChatController extends ChangeNotifier {
       _messages = _sorted([..._messages, message]);
     } else {
       final existing = _messages[index];
-      if (!force && existing.status == MessageStatus.read && message.status == MessageStatus.sent) {
+      if (!force &&
+          !message.isDeleted &&
+          existing.status == MessageStatus.read &&
+          message.status == MessageStatus.sent) {
         return;
       }
       _messages = [..._messages]..[index] = message;
@@ -216,6 +298,8 @@ class ChatController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _stopTyping();
+    _remoteTypingTimer?.cancel();
     _disposed = true;
     unawaited(_subscription.cancel());
     super.dispose();

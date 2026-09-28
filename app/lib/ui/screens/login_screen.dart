@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_exception.dart';
 import '../../state/session_controller.dart';
+import '../l10n.dart';
 import '../widgets/state_views.dart';
 import 'auth_layout.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -42,7 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.message;
+        _error = errorMessage(context.l10n, e);
         _fieldErrors = e.fields;
       });
     } finally {
@@ -50,11 +52,14 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _push(Widget screen) => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return AuthLayout(
-      title: 'Welcome back',
-      subtitle: 'Sign in to continue to Chat App',
+      title: l.welcomeBack,
+      subtitle: l.signInSubtitle,
       child: Form(
         key: _formKey,
         child: AutofillGroup(
@@ -66,7 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 key: const Key('login.identifier'),
                 controller: _identifier,
                 decoration: InputDecoration(
-                  labelText: 'Email or username',
+                  labelText: l.emailOrUsername,
                   prefixIcon: const Icon(Icons.person_outline),
                   errorText: _fieldErrors['identifier'],
                 ),
@@ -74,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
                 enabled: !_loading,
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your email or username' : null,
+                validator: (v) => (v == null || v.trim().isEmpty) ? l.enterEmailOrUsername : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -82,11 +87,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _password,
                 obscureText: _obscure,
                 decoration: InputDecoration(
-                  labelText: 'Password',
+                  labelText: l.password,
                   prefixIcon: const Icon(Icons.lock_outline),
                   errorText: _fieldErrors['password'],
                   suffixIcon: IconButton(
-                    tooltip: _obscure ? 'Show password' : 'Hide password',
+                    tooltip: _obscure ? l.showPassword : l.hidePassword,
                     icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                     onPressed: () => setState(() => _obscure = !_obscure),
                   ),
@@ -95,24 +100,24 @@ class _LoginScreenState extends State<LoginScreen> {
                 textInputAction: TextInputAction.done,
                 enabled: !_loading,
                 onFieldSubmitted: (_) => _submit(),
-                validator: (v) => (v == null || v.isEmpty) ? 'Enter your password' : null,
+                validator: (v) => (v == null || v.isEmpty) ? l.enterPassword : null,
               ),
-              const SizedBox(height: 24),
-              SubmitButton(label: 'Login', loading: _loading, onPressed: _submit),
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton(
+                  onPressed: _loading ? null : () => _push(const ForgotPasswordScreen()),
+                  child: Text(l.forgotPassword),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SubmitButton(label: l.login, loading: _loading, onPressed: _submit),
               const SizedBox(height: 16),
               Wrap(
                 alignment: WrapAlignment.center,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  const Text("Don't have an account?"),
-                  TextButton(
-                    onPressed: _loading
-                        ? null
-                        : () => Navigator.of(
-                            context,
-                          ).push(MaterialPageRoute<void>(builder: (_) => const RegisterScreen())),
-                    child: const Text('Register'),
-                  ),
+                  Text(l.noAccount),
+                  TextButton(onPressed: _loading ? null : () => _push(const RegisterScreen()), child: Text(l.register)),
                 ],
               ),
             ],

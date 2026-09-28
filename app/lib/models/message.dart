@@ -13,6 +13,7 @@ class Message {
     required this.createdAt,
     required this.status,
     this.readAt,
+    this.deletedAt,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) => Message(
@@ -24,6 +25,8 @@ class Message {
     createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
     status: json['status'] == 'read' ? MessageStatus.read : MessageStatus.sent,
     readAt: json['readAt'] is String ? DateTime.parse(json['readAt'] as String).toUtc() : null,
+    // Added to the contract in §3.4.1; absent on servers that predate it.
+    deletedAt: json['deletedAt'] is String ? DateTime.parse(json['deletedAt'] as String).toUtc() : null,
   );
 
   factory Message.optimistic({
@@ -51,8 +54,10 @@ class Message {
   final DateTime createdAt;
   final MessageStatus status;
   final DateTime? readAt;
+  final DateTime? deletedAt;
 
   bool get isLocal => id.startsWith(localIdPrefix);
+  bool get isDeleted => deletedAt != null;
 
   Message copyWith({MessageStatus? status, DateTime? readAt}) => Message(
     id: id,
@@ -63,6 +68,7 @@ class Message {
     createdAt: createdAt,
     status: status ?? this.status,
     readAt: readAt ?? this.readAt,
+    deletedAt: deletedAt,
   );
 }
 

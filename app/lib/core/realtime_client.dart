@@ -216,6 +216,12 @@ class RealtimeClient extends ChangeNotifier {
     _attempt++;
   }
 
+  /// Sends a client frame when connected. Transient frames (typing, read) are
+  /// dropped while offline; REST remains the source of truth.
+  void send(String type, Map<String, dynamic> payload) {
+    if (_status == RealtimeStatus.connected) _send(type, payload);
+  }
+
   void _send(String type, Map<String, dynamic> payload) {
     _connection?.send(jsonEncode({'type': type, 'payload': payload}));
   }

@@ -25,6 +25,10 @@ class FakeBackend {
   /// Makes the next `POST .../messages` fail with a 500.
   bool failNextSend = false;
 
+  /// Emails passed to `POST /auth/forgot-password`, and the one valid reset code.
+  final forgotPasswordEmails = <String>[];
+  static const validResetCode = 'reset-123';
+
   Map<String, dynamic> addUser(String username, {String password = 'password123', bool online = false}) {
     final id = 'u_$username';
     _users[id] = {
@@ -40,6 +44,9 @@ class FakeBackend {
     _passwords[id] = password;
     return _users[id]!;
   }
+
+  /// Simulates a server-side revocation: every issued token becomes invalid.
+  void revokeAllTokens() => _tokens.clear();
 
   String issueToken(String userId) {
     final token = 'access_${userId}_${_seq++}';
@@ -89,13 +96,14 @@ class FakeBackend {
     'createdAt': DateTime.utc(2026, 9, 28, 12).add(Duration(seconds: _seq)).toIso8601String(),
     'status': 'sent',
     'readAt': null,
+    'deletedAt': null,
   };
 
   Map<String, dynamic> _conversationJson(_Conv c, String me) => {
     'id': c.id,
     'type': 'direct',
     'participant': _users[c.a == me ? c.b : c.a],
-    'lastMessage': c.messages.isEmpty ? null : c.messages.last,
+    'lastMessage': c.messages.where((m) => m['deletedAt'] == null).lastOrNull,
     'unreadCount': 0,
     'updatedAt': c.messages.isEmpty ? '2026-09-28T10:00:00.000Z' : c.messages.last['createdAt'],
   };
@@ -128,6 +136,17 @@ class FakeBackend {
       return _session(201, user);
     }
 
+    if (request.method == 'POST' && path == '/api/auth/forgot-password') {
+      forgotPasswordEmails.add(body['email'] as String);
+      return _json(202, {});
+    }
+    if (request.method == 'POST' && path == '/api/auth/reset-password') {
+      if (body['token'] != validResetCode) {
+        return _error(400, 'VALIDATION_ERROR', 'Reset code is invalid or expired.', fields: {'token': 'Invalid code.'});
+      }
+      return http.Response('', 204);
+    }
+
     final me = _tokens[request.headers['Authorization']?.replaceFirst('Bearer ', '')];
     if (me == null) return _error(401, 'UNAUTHENTICATED', 'Sign in required.');
 
@@ -156,6 +175,19 @@ class FakeBackend {
       final newId = 'c_${_seq++}';
       final conv = existing ?? (_conversations[newId] = _Conv(newId, me, other));
       return _json(200, _conversationJson(conv, me));
+    }
+
+    final deleteMatch = RegExp(r'^/api/conversations/([^/]+)/messages/([^/]+)$').firstMatch(path);
+    if (request.method == 'DELETE' && deleteMatch != null) {
+      final messages = _conversations[deleteMatch.group(1)]?.messages ?? const [];
+      final message = messages.where((m) => m['id'] == deleteMatch.group(2)).firstOrNull;
+      if (message == null) return _error(404, 'NOT_FOUND', 'Not found.');
+      if ((message['sender'] as Map)['id'] != me) return _error(403, 'FORBIDDEN', 'Not your message.');
+      message
+        ..['body'] = ''
+        ..['deletedAt'] = DateTime.utc(2026, 9, 28, 13).toIso8601String();
+      push('message:updated', {'message': message});
+      return http.Response('', 204);
     }
 
     final match = RegExp(r'^/api/conversations/([^/]+)/(messages|read)$').firstMatch(path);

@@ -114,4 +114,29 @@ void main() {
     expect(expired, 1);
     expect(await tokens.read(), isNull);
   });
+
+  test('UNAUTHENTICATED on a protected call ends the session', () async {
+    final tokens = InMemoryTokenStorage(const Tokens('bad', 'r1'));
+    var expired = 0;
+    final client = ApiClient(
+      baseUrl: 'http://x',
+      tokens: tokens,
+      httpClient: MockClient((_) async => _error(401, 'UNAUTHENTICATED', 'Invalid token.')),
+    )..onSessionExpired = () => expired++;
+
+    await expectLater(client.get('/conversations'), throwsA(isA<ApiException>()));
+    expect(expired, 1);
+    expect(await tokens.read(), isNull);
+  });
+
+  test('UNAUTHENTICATED from login (unauthenticated call) does not expire anything', () async {
+    var expired = 0;
+    final client = ApiClient(
+      baseUrl: 'http://x',
+      tokens: InMemoryTokenStorage(),
+      httpClient: MockClient((_) async => _error(401, 'UNAUTHENTICATED', 'Nope.')),
+    )..onSessionExpired = () => expired++;
+    await expectLater(client.post('/auth/login', body: {}, auth: false), throwsA(isA<ApiException>()));
+    expect(expired, 0);
+  });
 }

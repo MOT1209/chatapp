@@ -1,11 +1,17 @@
 import 'package:chat_app/models/conversation.dart';
 import 'package:chat_app/models/message.dart';
 import 'package:chat_app/models/user.dart';
+import 'package:chat_app/l10n/app_localizations.dart';
 import 'package:chat_app/ui/format.dart';
 import 'package:chat_app/ui/screens/register_screen.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  final en = lookupAppLocalizations(const Locale('en'));
+  final ar = lookupAppLocalizations(const Locale('ar'));
+  final v = RegisterValidators(en);
+
   const sara = {
     'id': 'u_2',
     'username': 'sara',
@@ -53,6 +59,21 @@ void main() {
     expect(c.lastMessage, isNull);
   });
 
+  test('deletedAt is optional and marks a message deleted', () {
+    final base = {
+      'id': 'm1',
+      'clientId': 'c1',
+      'conversationId': 'c_1',
+      'sender': sara,
+      'body': '',
+      'createdAt': '2026-09-28T14:02:00.000Z',
+      'status': 'sent',
+      'readAt': null,
+    };
+    expect(Message.fromJson(base).isDeleted, isFalse);
+    expect(Message.fromJson({...base, 'deletedAt': '2026-09-28T14:05:00.000Z'}).isDeleted, isTrue);
+  });
+
   test('optimistic messages are local and pending', () {
     final m = Message.optimistic(clientId: 'abc', conversationId: 'c_1', sender: User.fromJson(sara), body: 'Hello');
     expect(m.isLocal, isTrue);
@@ -69,36 +90,42 @@ void main() {
     });
 
     test('list timestamps', () {
-      expect(formatListTimestamp(DateTime(2026, 9, 27, 10).toUtc(), now: now), 'Yesterday');
-      expect(formatListTimestamp(DateTime(2026, 3, 1).toUtc(), now: now), 'Mar 1');
-      expect(formatListTimestamp(DateTime(2025, 3, 1).toUtc(), now: now), 'Mar 1, 2025');
+      expect(formatListTimestamp(en, DateTime(2026, 9, 27, 10).toUtc(), now: now), 'Yesterday');
+      expect(formatListTimestamp(en, DateTime(2026, 3, 1).toUtc(), now: now), 'Mar 1');
+      expect(formatListTimestamp(en, DateTime(2025, 3, 1).toUtc(), now: now), 'Mar 1, 2025');
+    });
+
+    test('Arabic labels', () {
+      expect(presenceLabel(ar, User.fromJson(sara)), 'متصل الآن');
+      expect(formatDayDivider(ar, DateTime(2026, 9, 27, 10).toUtc(), now: now), 'أمس');
+      expect(RegisterValidators(ar).password('short'), '8 أحرف على الأقل');
     });
 
     test('presence', () {
-      expect(presenceLabel(User.fromJson(sara)), 'Online');
-      expect(presenceLabel(User.fromJson({...sara, 'isOnline': false, 'lastSeenAt': null})), 'Offline');
+      expect(presenceLabel(en, User.fromJson(sara)), 'Online');
+      expect(presenceLabel(en, User.fromJson({...sara, 'isOnline': false, 'lastSeenAt': null})), 'Offline');
     });
   });
 
   group('register validators mirror the contract', () {
     test('username', () {
-      expect(RegisterValidators.username('ab'), isNotNull);
-      expect(RegisterValidators.username('has space'), isNotNull);
-      expect(RegisterValidators.username('Ahmad_1.x'), isNull, reason: 'lowercased before checking');
-      expect(RegisterValidators.username('a' * 31), isNotNull);
+      expect(v.username('ab'), isNotNull);
+      expect(v.username('has space'), isNotNull);
+      expect(v.username('Ahmad_1.x'), isNull, reason: 'lowercased before checking');
+      expect(v.username('a' * 31), isNotNull);
     });
 
     test('password is 8–72 chars', () {
-      expect(RegisterValidators.password('1234567'), isNotNull);
-      expect(RegisterValidators.password('12345678'), isNull);
-      expect(RegisterValidators.password('a' * 73), isNotNull);
+      expect(v.password('1234567'), isNotNull);
+      expect(v.password('12345678'), isNull);
+      expect(v.password('a' * 73), isNotNull);
     });
 
     test('email and display name', () {
-      expect(RegisterValidators.email('nope'), isNotNull);
-      expect(RegisterValidators.email('a@b.co'), isNull);
-      expect(RegisterValidators.displayName(''), isNotNull);
-      expect(RegisterValidators.displayName('a' * 51), isNotNull);
+      expect(v.email('nope'), isNotNull);
+      expect(v.email('a@b.co'), isNull);
+      expect(v.displayName(''), isNotNull);
+      expect(v.displayName('a' * 51), isNotNull);
     });
   });
 }

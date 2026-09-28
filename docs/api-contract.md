@@ -12,11 +12,11 @@ Everything below is what the frontend is built against. The frontend makes **no 
 
 | Topic | Decision |
 | --- | --- |
-| Base URL | `http://localhost:4000` in development, set as `VITE_API_URL` in the frontend |
+| Base URL | `http://localhost:4000` in development, set as `API_URL` (`--dart-define`) in the Flutter client |
 | API prefix | every REST route is mounted under `/api` |
 | Content type | `application/json` for both request and response bodies |
 | Auth | `Authorization: Bearer <accessToken>` on every protected route |
-| Tokens | both the access and the refresh token are returned in the JSON body. The frontend stores them in `localStorage` |
+| Tokens | both the access and the refresh token are returned in the JSON body. The client stores them in platform secure storage on Android/iOS and in `shared_preferences` on web (`localStorage`) and desktop |
 | IDs | every entity has an `id` of type string. The backend may use UUIDs or CUIDs — the frontend treats it as an opaque string and never parses it |
 | Timestamps | ISO 8601 in UTC, e.g. `"2026-09-28T14:03:11.000Z"`. The frontend formats them for display |
 | Money/amounts | not applicable at this stage |
@@ -85,7 +85,7 @@ type User = {
 
 The backend returns the same shape everywhere, including inside conversations and messages. Nested occurrences use the same field names (no `sender.user` indirection).
 
-> **Clarification (added when the backend was implemented):** `email` is only ever present on the caller's *own* record — the response body of `register`, `login`, and `GET`/`PATCH /api/users/me`. Every other occurrence of `User` (a conversation's `participant`, a message's `sender`, a search result, `GET /api/users/:id`) omits the `email` key entirely rather than sending another user's address. This matches how the frontend already renders it — `ProfilePanel` only shows `user.email` when `isOwnProfile` is true — so no frontend change was needed. TypeScript's `User` type still marks `email` as always present; treat that as accurate only for your own account, and access it defensively (`user.email ?? ""`) anywhere a `User` isn't guaranteed to be the caller.
+> **Clarification (added when the backend was implemented):** `email` is only ever present on the caller's *own* record — the response body of `register`, `login`, and `GET`/`PATCH /api/users/me`. Every other occurrence of `User` (a conversation's `participant`, a message's `sender`, a search result, `GET /api/users/:id`) omits the `email` key entirely rather than sending another user's address. The Flutter client's `User.email` is nullable and only the profile screen for the signed-in user shows it.
 
 ### 2.2 Conversation
 
@@ -428,7 +428,7 @@ Errors:
 
 | Topic | Decision |
 | --- | --- |
-| URL | `ws://localhost:4000/ws`, from `VITE_WS_URL` |
+| URL | `ws://localhost:4000/ws`, from `WS_URL` (`--dart-define`) |
 | Protocol | raw WebSocket, no library. Frame format is JSON text |
 | Auth | **not** a query parameter. The first frame the client sends must be `auth` (§4.3). The backend closes the socket with code `4401` if it does not arrive within 5 seconds |
 | Heartbeat | client sends `ping` every 25s. The server replies `pong`. The frontend tolerates up to 2 missed pongs before forcing a reconnect |
@@ -493,7 +493,7 @@ Shared with the backend developer so both sides know how the client behaves.
 
 ### 5.1 Token handling
 
-1. On boot the frontend reads `localStorage`, then calls `GET /api/users/me` to confirm the token is still valid.
+1. On boot the client reads its token storage, then calls `GET /api/users/me` to confirm the token is still valid.
 2. On any `401 TOKEN_EXPIRED`, the frontend calls `POST /api/auth/refresh` once and retries the original request. Concurrent 401s share a single refresh call.
 3. If refresh fails, it clears storage and returns to `/login`. It does **not** retry in a loop.
 

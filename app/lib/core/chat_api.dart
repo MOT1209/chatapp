@@ -94,6 +94,19 @@ class ChatApi {
     await client.post('/conversations/$conversationId/read', body: {'messageId': messageId});
   }
 
+  /// Contract §3.4.1. Only the sender may delete; the server broadcasts `message:updated`.
+  Future<void> deleteMessage(String conversationId, String messageId) async {
+    await client.delete('/conversations/$conversationId/messages/$messageId');
+  }
+
+  Future<void> forgotPassword(String email) async {
+    await client.post('/auth/forgot-password', body: {'email': email}, auth: false);
+  }
+
+  Future<void> resetPassword({required String token, required String newPassword}) async {
+    await client.post('/auth/reset-password', body: {'token': token, 'newPassword': newPassword}, auth: false);
+  }
+
   Future<User> _storeSession(Map<String, dynamic> json) async {
     await _tokens.write(Tokens(json['accessToken'] as String, json['refreshToken'] as String));
     return User.fromJson(json['user'] as Map<String, dynamic>);

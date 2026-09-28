@@ -1,17 +1,17 @@
 {
   "name": "chatapp",
   "private": true,
-  "version": "0.0.0",
-  "description": "ChatApp monorepo — React frontend + Node/Express/Prisma backend",
+  "version": "0.0.1",
+  "description": "ChatApp monorepo — Flutter client (app/) + Node/Express/Prisma backend (backend/)",
   "scripts": {
-    "install:all": "npm install --prefix frontend --legacy-peer-deps && npm install --prefix backend --legacy-peer-deps",
+    "install:all": "npm install --prefix backend && cd app && flutter pub get",
     "dev": "npm-run-all --parallel dev:*",
-    "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "npm --prefix backend run dev",
-    "build": "npm --prefix frontend run build && npm --prefix backend run build",
-    "test": "npm --prefix frontend test && npm --prefix backend test",
-    "lint": "npm --prefix frontend run lint && npm --prefix backend run lint",
-    "typecheck": "npm --prefix frontend run typecheck && npm --prefix backend run typecheck"
+    "dev:app": "cd app && flutter run -d chrome --web-port 5173",
+    "build": "npm --prefix backend run build && cd app && flutter build web --release",
+    "test": "npm --prefix backend test && cd app && flutter test",
+    "lint": "npm --prefix backend run lint && cd app && flutter analyze",
+    "typecheck": "npm --prefix backend run typecheck && cd app && flutter analyze"
   },
   "devDependencies": {
     "npm-run-all": "4.1.5"

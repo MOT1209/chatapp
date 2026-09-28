@@ -1,3 +1,4 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class Tokens {
@@ -12,8 +13,37 @@ abstract class TokenStorage {
   Future<void> clear();
 }
 
-/// Contract §1 stores tokens in plain local storage for Alpha. On web this is
-/// XSS-readable; move to platform secure storage before a public release.
+/// Keychain (iOS) / Keystore-backed encrypted storage (Android).
+class SecureTokenStorage implements TokenStorage {
+  SecureTokenStorage([FlutterSecureStorage? storage]) : _storage = storage ?? const FlutterSecureStorage();
+
+  final FlutterSecureStorage _storage;
+  static const _accessKey = 'auth.accessToken';
+  static const _refreshKey = 'auth.refreshToken';
+
+  @override
+  Future<Tokens?> read() async {
+    final access = await _storage.read(key: _accessKey);
+    final refresh = await _storage.read(key: _refreshKey);
+    if (access == null || refresh == null) return null;
+    return Tokens(access, refresh);
+  }
+
+  @override
+  Future<void> write(Tokens tokens) async {
+    await _storage.write(key: _accessKey, value: tokens.accessToken);
+    await _storage.write(key: _refreshKey, value: tokens.refreshToken);
+  }
+
+  @override
+  Future<void> clear() async {
+    await _storage.delete(key: _accessKey);
+    await _storage.delete(key: _refreshKey);
+  }
+}
+
+/// Used on web and desktop. On web this is `localStorage` and readable by any
+/// XSS; on desktop it is a plain file in the user's profile.
 class SharedPrefsTokenStorage implements TokenStorage {
   SharedPrefsTokenStorage(this._prefs);
 

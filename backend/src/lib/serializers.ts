@@ -1,8 +1,8 @@
 import type { User as PrismaUser, Message as PrismaMessage } from '@prisma/client';
 
 // Wire shapes from docs/api-contract.md §2. Keep these in lockstep with
-// frontend/src/lib/types.ts — a field renamed here without an update there breaks
-// the frontend silently, since neither side validates the other's shape at runtime.
+// app/lib/models/ — a field renamed here without an update there breaks
+// the client silently, since neither side validates the other's shape at runtime.
 
 export type UserDTO = {
   id: string;

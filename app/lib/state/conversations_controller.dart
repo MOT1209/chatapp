@@ -90,10 +90,24 @@ class ConversationsController extends ChangeNotifier {
     _notify();
   }
 
+  void applyUpdate(Message message) {
+    final c = byId(message.conversationId);
+    if (c == null) return;
+    if (message.isDeleted) {
+      // The server drops deleted messages from both the preview and unreadCount,
+      // and only it knows the previous message, so resync from REST (§4.6).
+      unawaited(load());
+      return;
+    }
+    if (c.lastMessage?.id == message.id) _replace(c.copyWith(lastMessage: message));
+  }
+
   void _onFrame(ServerFrame frame) {
     switch (frame.type) {
       case 'message:new':
         applyMessage(Message.fromJson(frame.payload['message'] as Map<String, dynamic>));
+      case 'message:updated':
+        applyUpdate(Message.fromJson(frame.payload['message'] as Map<String, dynamic>));
       case 'presence':
         _applyPresence(frame.payload);
       case 'ready':
