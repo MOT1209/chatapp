@@ -1,6 +1,6 @@
 import type { MessageDTO } from '../lib/serializers.js';
 
-// Mirrors frontend/src/lib/types.ts §"Realtime protocol" and
+// Mirrors the frame handling in app/lib/core/realtime_client.dart and
 // docs/api-contract.md §4. Both sides must change together.
 
 export type ClientFrame =

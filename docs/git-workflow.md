@@ -4,7 +4,7 @@
 
 ```
 main                 protected; no direct pushes
-├── frontend/*       frontend-only changes
+├── app/*            Flutter client changes
 ├── backend/*        backend-only changes
 ├── feature/*        cross-cutting feature work
 ├── fix/*            bug fixes
@@ -38,7 +38,7 @@ Examples:
 
 ```
 feat(backend): add /health endpoint
-fix(frontend): correct RTL padding on message list
+fix(app): correct RTL padding on message list
 chore: bump vite to 8.3.1
 ```
 

@@ -8,7 +8,12 @@ register → search → chat → realtime flow actually works end to end.
 
 ## What Alpha v0.0.1 delivers
 
-- Working React frontend (unchanged in this phase).
+- Flutter client for Android, iOS, Windows, macOS, Linux and Web (`app/`):
+  login, register, forgot/reset password, conversation list with people search,
+  chat with optimistic send and retry, realtime messages, typing indicator,
+  read receipts, message deletion, profile editing, dark mode, and an
+  Arabic (right-to-left) and English UI. Responsive: bottom navigation on
+  phones; navigation rail + sidebar + chat area on tablets and desktops.
 - Full backend: authentication (register/login/refresh/logout/forgot-reset
   password), user search and profiles, direct conversations, messages with
   idempotent send and cursor-paginated history, read receipts, basic message
@@ -32,7 +37,7 @@ password reset (the token is logged to the console instead — see
 
 ```
 chatapp/
-├── frontend/           React + TypeScript + Vite + Tailwind
+├── app/                Flutter (Dart) client for mobile, desktop and web
 ├── backend/            Node + Express + TypeScript + Prisma + PostgreSQL
 ├── docs/               contract, architecture, development, git workflow, UI plan
 ├── .github/            workflows, PR + issue templates
@@ -46,9 +51,9 @@ See [`docs/architecture.md`](docs/architecture.md).
 
 ## Tech stack
 
-- **Frontend** — React 19, TypeScript 5.9, Vite 8, Tailwind 4, TanStack Query 5, React Router 7, Zod, Zustand, RTL Arabic-first UI.
+- **Client** — Flutter 3.47 / Dart 3.13, Material 3, `provider`, `http`, `web_socket_channel`, `flutter_localizations` (Arabic + English, RTL), `flutter_secure_storage` on mobile.
 - **Backend** — Node ≥ 20, Express 4, TypeScript 5.7, Prisma 5, PostgreSQL 14+, Zod, Helmet, CORS, JWT (`jsonwebtoken`), bcrypt (`bcryptjs`), `express-rate-limit`, `ws`.
-- **CI** — GitHub Actions (typecheck, lint, tests, build; backend adds Prisma validate + migrate deploy + Postgres service container).
+- **CI** — GitHub Actions. Backend: typecheck, lint, tests against a Postgres service container, build. App: format, analyze, tests, and release builds for web, Android, Linux, Windows, macOS and iOS.
 
 ## Repository layout
 
@@ -62,17 +67,17 @@ Full walk-through in [`docs/development.md`](docs/development.md). Short version
 git clone <repo-url>
 cd chatapp
 
-# Frontend
-cd frontend && npm install && cp .env.example .env && cd ..
-
 # Backend
 cd backend && npm install && cp .env.example .env
 #   edit .env — DATABASE_URL, JWT secrets
 npm run prisma:generate && npm run prisma:migrate && cd ..
 
-# Optional: install root monorepo scripts
+# App (needs the Flutter SDK)
+cd app && flutter pub get && cd ..
+
+# Optional: root scripts
 npm install
-npm run dev          # runs frontend and backend in parallel
+npm run dev          # backend + Flutter web on http://localhost:5173 in parallel
 ```
 
 Health check:
@@ -84,12 +89,14 @@ curl http://localhost:4000/health
 
 ## Environment variables
 
-### Frontend (`frontend/.env`)
+### App (compile-time, `--dart-define`)
 
 | Variable | Purpose |
 | --- | --- |
-| `VITE_API_URL` | REST base URL, e.g. `http://localhost:4000` |
-| `VITE_WS_URL` | WebSocket URL, e.g. `ws://localhost:4000/ws` |
+| `API_URL` | REST base URL, default `http://localhost:4000` |
+| `WS_URL` | WebSocket URL, default `ws://localhost:4000/ws` |
+
+Example: `flutter run --dart-define=API_URL=http://10.0.2.2:4000 --dart-define=WS_URL=ws://10.0.2.2:4000/ws` (Android emulator).
 
 ### Backend (`backend/.env`)
 
@@ -109,7 +116,7 @@ curl http://localhost:4000/health
 
 ## Development commands
 
-Run from a workspace directory (`frontend/` or `backend/`):
+Backend (`backend/`):
 
 | Command | Purpose |
 | --- | --- |
@@ -117,9 +124,20 @@ Run from a workspace directory (`frontend/` or `backend/`):
 | `npm run build` | Production build |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run lint` | ESLint |
-| `npm test` | Unit tests |
+| `npm test` | Tests (needs Postgres, see `backend/README.md`) |
 
-Root-level (both workspaces):
+App (`app/`):
+
+| Command | Purpose |
+| --- | --- |
+| `flutter run -d chrome --web-port 5173` | Run on web (port 5173 matches the backend's default `CORS_ORIGIN`) |
+| `flutter run -d <device>` | Run on Android, iOS, Windows, macOS or Linux |
+| `dart format --set-exit-if-changed lib test` | Format check |
+| `flutter analyze` | Static analysis |
+| `flutter test` | Unit and widget tests |
+| `flutter build <web\|apk\|ios\|windows\|macos\|linux>` | Release build |
+
+Root-level (both workspaces, needs the Flutter SDK on `PATH`):
 
 ```bash
 npm run dev         # both dev servers in parallel
@@ -134,7 +152,7 @@ npm run typecheck   # both typecheckers
 Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 
 - `main` is protected — no direct pushes.
-- Branch prefixes: `frontend/*`, `backend/*`, `feature/*`, `fix/*`, `chore/*`.
+- Branch prefixes: `app/*`, `backend/*`, `feature/*`, `fix/*`, `chore/*`.
 - Every change opens a PR; CI must be green before merge.
 - Contract changes update `docs/api-contract.md` in the same PR.
 - Never commit `.env` or any secret.
@@ -159,4 +177,5 @@ Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 - [`docs/architecture.md`](docs/architecture.md) — system shape and boundaries.
 - [`docs/development.md`](docs/development.md) — setup and daily commands.
 - [`docs/git-workflow.md`](docs/git-workflow.md) — branches, commits, reviews.
-- [`docs/ui-plan.md`](docs/ui-plan.md) — frontend architecture (placeholder in Phase 0).
+- [`docs/ui-plan.md`](docs/ui-plan.md) — Flutter client architecture.
+- [`app/README.md`](app/README.md) — running and testing the client.

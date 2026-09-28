@@ -16,10 +16,10 @@
 
 ## Checklist
 
-- [ ] Tests pass (`npm test`)
-- [ ] Typecheck passes (`npm run typecheck`)
+- [ ] Tests pass (`npm test` in `backend/`, `flutter test` in `app/`)
+- [ ] Typecheck / analyze passes (`npm run typecheck`, `flutter analyze`)
 - [ ] Lint passes (`npm run lint`)
 - [ ] Build passes (`npm run build`)
 - [ ] No secrets, `.env`, or credentials committed
 - [ ] Documentation updated if the change is user-facing or affects the API contract
-- [ ] Change stays within one workspace (`frontend/` or `backend/`) unless the PR is explicitly a contract change
+- [ ] Change stays within one workspace (`app/` or `backend/`) unless the PR is explicitly a contract change

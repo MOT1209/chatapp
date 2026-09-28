@@ -7,13 +7,13 @@
 ```
 ┌──────────────┐        HTTPS/REST         ┌───────────────┐        SQL         ┌────────────┐
 │              │ ─────────────────────────▶│               │ ──────────────────▶│            │
-│   Frontend   │                            │   Backend     │                    │ PostgreSQL │
-│  (Vite SPA)  │◀────────── WSS ───────────│  (Express)    │◀──── Prisma ──────│            │
+│   Client     │                            │   Backend     │                    │ PostgreSQL │
+│  (Flutter)   │◀────────── WSS ───────────│  (Express)    │◀──── Prisma ──────│            │
 │              │                            │               │                    │            │
 └──────────────┘                            └───────────────┘                    └────────────┘
 ```
 
-- **Frontend**: React 19 SPA served by Vite in dev, static assets in production.
+- **Client**: one Flutter codebase in `app/`, built for Android, iOS, Windows, macOS, Linux and Web. Web builds are static assets.
 - **Backend**: Node/Express HTTP API + `ws` WebSocket server, both on the same HTTP server/port.
 - **Database**: PostgreSQL via Prisma. Migrations in `backend/prisma/migrations/`.
 - **Contract**: [`api-contract.md`](./api-contract.md) is the single source of truth between the two workspaces.
@@ -22,7 +22,7 @@
 
 ```
 chatapp/
-├── frontend/           React + TypeScript + Vite
+├── app/                Flutter client
 ├── backend/            Node + Express + TypeScript + Prisma
 ├── docs/               contract + guides
 └── .github/            CI + templates
@@ -30,7 +30,7 @@ chatapp/
 
 ## Boundaries
 
-- Frontend never imports from `backend/` and vice versa.
+- The client never imports from `backend/` and vice versa.
 - Cross-workspace shared knowledge lives in `docs/api-contract.md`. Any change that breaks the contract must update it in the same PR.
 - Backend `src/lib/` holds infrastructure (logger, prisma client, jwt/password helpers, error types). No route or realtime logic here.
 - Backend `src/routes/` mounts routers under `/api` and wires middleware; handlers live in `src/controllers/`, business logic and Prisma queries live in `src/services/`.
@@ -40,8 +40,8 @@ chatapp/
 
 | Environment | Frontend | Backend |
 | --- | --- | --- |
-| Local dev | Vite `:5173` | Express `:4000` |
-| CI | Build + tests only | Build + tests + Postgres service container |
+| Local dev | `flutter run` (web on `:5173`) | Express `:4000` |
+| CI | Analyze + tests + release build per platform | Build + tests + Postgres service container |
 | Production | (TBD post-Alpha) | (TBD post-Alpha) |
 
 ## What is intentionally **not** here in Alpha v0.0.1

@@ -3,6 +3,7 @@
 ## Prerequisites
 
 - Node.js ≥ 20 (managed via `.nvmrc` if you use nvm)
+- Flutter ≥ 3.47 (stable) for the client, plus the platform toolchain you target (Android SDK, Xcode, Visual Studio, or GTK dev libraries on Linux)
 - npm ≥ 10
 - PostgreSQL ≥ 14 running locally (or a reachable `DATABASE_URL`)
 - Git
@@ -13,12 +14,6 @@
 git clone <repo-url>
 cd chatapp
 
-# Frontend
-cd frontend
-npm install
-cp .env.example .env
-cd ..
-
 # Backend
 cd backend
 npm install
@@ -26,6 +21,11 @@ cp .env.example .env
 # edit .env — set DATABASE_URL, JWT secrets
 npm run prisma:generate
 npm run prisma:migrate   # creates initial migration
+cd ..
+
+# App
+cd app
+flutter pub get
 cd ..
 ```
 
@@ -35,10 +35,10 @@ Two terminals is the simplest path:
 
 ```bash
 # terminal 1
-cd frontend && npm run dev
-
-# terminal 2
 cd backend && npm run dev
+
+# terminal 2 — web on :5173 matches the backend's default CORS_ORIGIN
+cd app && flutter run -d chrome --web-port 5173
 ```
 
 Or from the repo root, if the monorepo scripts are installed:
@@ -50,7 +50,7 @@ npm run dev            # runs both in parallel
 
 ## Common commands
 
-Run from the workspace directory (`frontend/` or `backend/`):
+Backend, from `backend/`:
 
 | Command | What it does |
 | --- | --- |
@@ -62,14 +62,17 @@ Run from the workspace directory (`frontend/` or `backend/`):
 
 Backend adds Prisma commands: `prisma:migrate`, `prisma:generate`, `prisma:studio`.
 
+App, from `app/`: `flutter run`, `flutter analyze`, `flutter test`, `dart format lib test`,
+`flutter build <platform>`. See [`app/README.md`](../app/README.md).
+
 ## Environment variables
 
-### Frontend (`frontend/.env`)
+### App (`--dart-define` at build/run time)
 
 | Variable | Purpose |
 | --- | --- |
-| `VITE_API_URL` | REST base URL, e.g. `http://localhost:4000` |
-| `VITE_WS_URL` | WebSocket URL, e.g. `ws://localhost:4000/ws` |
+| `API_URL` | REST base URL, default `http://localhost:4000` |
+| `WS_URL` | WebSocket URL, default `ws://localhost:4000/ws` |
 
 ### Backend (`backend/.env`)
 
@@ -116,10 +119,16 @@ Postgres service container.
 
 ## Testing before pushing
 
-Run all four in both workspaces:
+Backend:
 
 ```
 npm run typecheck && npm run lint && npm test && npm run build
+```
+
+App:
+
+```
+dart format --set-exit-if-changed lib test && flutter analyze && flutter test
 ```
 
 CI runs the same set. If it fails locally, it will fail there.
