@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
+
 class AuthLayout extends StatelessWidget {
   const AuthLayout({super.key, required this.title, required this.subtitle, required this.child});
 
@@ -53,9 +55,9 @@ class SubmitButton extends StatelessWidget {
   Widget build(BuildContext context) => FilledButton(
     onPressed: loading ? null : onPressed,
     child: loading
-        ? const SizedBox.square(
+        ? SizedBox.square(
             dimension: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Loading'),
+            child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: context.l10n.loading),
           )
         : Text(label),
   );

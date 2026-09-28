@@ -8,8 +8,10 @@ only through [`docs/api-contract.md`](../docs/api-contract.md) — no mock data 
 ```bash
 cd app
 flutter pub get
-flutter run -d chrome        # or: -d linux / macos / windows / <device-id>
+flutter run -d chrome --web-port 5173   # or: -d linux / macos / windows / <device-id>
 ```
+
+Port 5173 matches the backend's default `CORS_ORIGIN`. Native apps don't need CORS.
 
 Backend URLs are compile-time settings (defaults shown):
 
@@ -38,7 +40,8 @@ flutter build web --release
 lib/
 ├── core/      API client (refresh flow), endpoint methods, WebSocket client, token storage
 ├── models/    User, Conversation, Message — parsed exactly as the contract defines them
-├── state/     ChangeNotifier controllers: session, conversations, one open chat, theme
+├── state/     ChangeNotifier controllers: session, conversations, one open chat, settings
+├── l10n/      Arabic and English ARB files (+ generated code)
 └── ui/        screens, shared widgets, theme, responsive breakpoints
 test/
 ├── support/   in-memory implementation of the contract (HTTP + WebSocket) — tests only
@@ -48,10 +51,17 @@ test/
 Responsive breakpoints: `< 600` compact (bottom navigation, full-screen chat),
 `600–1023` medium and `≥ 1024` expanded (navigation rail, conversation sidebar, chat area).
 
+## Languages
+
+Arabic (right-to-left) and English. The app follows the device language, and Profile can
+override it. Strings live in `lib/l10n/app_en.arb` and `lib/l10n/app_ar.arb`; add a key to
+both, then `flutter gen-l10n` (also runs on `flutter pub get`). Noto Sans Arabic is bundled
+(`assets/fonts`, SIL Open Font License) so web builds don't need a font CDN.
+
 ## Known limits in Alpha
 
-- Tokens live in `shared_preferences` as the contract specifies. On Web that is `localStorage`
-  and XSS-readable; move to platform secure storage before a public release.
-- Typing indicators are not sent or shown yet, though the contract supports them.
+- Tokens use Keychain/Keystore on iOS and Android. On web they are in `localStorage`
+  (readable by any XSS) and on desktop in a plain preferences file.
+- Backend error messages are shown verbatim (contract §1.1), so they stay English in the
+  Arabic UI. Client-side errors are localized.
 - The message list is not virtualised beyond `ListView.builder`'s lazy building.
-- UI strings are English only; layouts use directional alignment so RTL can be added.

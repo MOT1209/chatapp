@@ -108,6 +108,43 @@ void main() {
       await unmount(tester);
     });
 
+    testWidgets('forgot password requests a code, then resets with it', (tester) async {
+      await pumpApp(tester, backend);
+      await tester.tap(find.text('Forgot password?'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('forgot.email')), 'ahmad@example.com');
+      await tester.tap(find.widgetWithText(FilledButton, 'Send reset code'));
+      await tester.pumpAndSettle();
+      expect(backend.forgotPasswordEmails, ['ahmad@example.com']);
+      expect(find.textContaining('a reset code is on its way'), findsOneWidget);
+
+      await tester.tap(find.text('I have a reset code'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('reset.code')), 'wrong');
+      await tester.enterText(find.byKey(const Key('reset.password')), 'new-password');
+      await tester.enterText(find.byKey(const Key('reset.confirm')), 'new-password');
+      await tester.tap(find.widgetWithText(FilledButton, 'Set new password'));
+      await tester.pumpAndSettle();
+      expect(find.text('Invalid code.'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('reset.code')), FakeBackend.validResetCode);
+      await tester.tap(find.widgetWithText(FilledButton, 'Set new password'));
+      await tester.pumpAndSettle();
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(find.text('Password updated. You can log in now.'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('an invalid token mid-session signs the user out', (tester) async {
+      await pumpApp(tester, backend, storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'));
+      expect(find.text('Sara'), findsOneWidget);
+      backend.revokeAllTokens();
+      await tester.drag(find.text('Sara'), const Offset(0, 300));
+      await tester.pumpAndSettle();
+      expect(find.text('Welcome back'), findsOneWidget);
+      await unmount(tester);
+    });
+
     testWidgets('logout returns to Login', (tester) async {
       await pumpApp(tester, backend);
       await login(tester, 'ahmad', 'secret-pass');
@@ -156,7 +193,7 @@ void main() {
       final stored = backend.messagesIn(conversationId).last;
       expect(stored['body'], 'See you soon');
       expect(stored['clientId'], isNotEmpty);
-      expect(find.bySemanticsLabel(RegExp('You, .*, sent')), findsWidgets);
+      expect(find.bySemanticsLabel(RegExp('You, .*, Sent')), findsWidgets);
       await unmount(tester);
     });
 
@@ -191,6 +228,63 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Ping from Sara'), findsOneWidget);
       expect(find.descendant(of: find.byType(Badge), matching: find.text('1')), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('typing from the participant shows in the header and clears itself', (tester) async {
+      await openSara(tester);
+      backend.push('typing', {'conversationId': conversationId, 'userId': 'u_sara', 'isTyping': true});
+      await tester.pumpAndSettle();
+      expect(find.text('typing…'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      expect(find.text('typing…'), findsNothing);
+      await unmount(tester);
+    });
+
+    testWidgets('typing in the composer sends typing frames, then stops on send', (tester) async {
+      await openSara(tester);
+      await tester.enterText(find.byKey(const Key('chat.input')), 'Hel');
+      await tester.pump();
+      final socket = backend.sockets.last;
+      List<Object?> typingFrames() =>
+          socket.sent.where((f) => f['type'] == 'typing').map((f) => (f['payload'] as Map)['isTyping']).toList();
+      expect(typingFrames(), [true]);
+      await tester.tap(find.byKey(const Key('chat.send')));
+      await tester.pumpAndSettle();
+      expect(typingFrames(), [true, false]);
+      await unmount(tester);
+    });
+
+    testWidgets('long-press deletes my own message after confirmation', (tester) async {
+      await openSara(tester);
+      await tester.longPress(find.text('How are you?'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete this message for everyone?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await tester.pumpAndSettle();
+      expect(find.text('How are you?'), findsNothing);
+      expect(find.text('This message was deleted'), findsWidgets);
+      expect(backend.messagesIn(conversationId).last['deletedAt'], isNotNull);
+      await unmount(tester);
+    });
+
+    testWidgets("other people's messages cannot be deleted", (tester) async {
+      await openSara(tester);
+      await tester.longPress(find.text('Hello 👋'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete this message for everyone?'), findsNothing);
+      await unmount(tester);
+    });
+
+    testWidgets('a deletion by the other person arrives in realtime', (tester) async {
+      await openSara(tester);
+      final message = backend.messagesIn(conversationId).first
+        ..['body'] = ''
+        ..['deletedAt'] = '2026-09-28T13:00:00.000Z';
+      backend.push('message:updated', {'message': message});
+      await tester.pumpAndSettle();
+      expect(find.text('Hello 👋'), findsNothing);
+      expect(find.text('This message was deleted'), findsOneWidget);
       await unmount(tester);
     });
 
@@ -236,6 +330,41 @@ void main() {
       expect(find.byType(ChatScreen), findsOneWidget);
       expect(find.byKey(const Key('home.search')), findsOneWidget);
       expect(find.byTooltip('Back'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await unmount(tester);
+    });
+  });
+
+  group('Arabic', () {
+    testWidgets('login renders right-to-left in Arabic', (tester) async {
+      await pumpApp(tester, backend, locale: 'ar');
+      expect(find.text('مرحبًا بعودتك'), findsOneWidget);
+      expect(Directionality.of(tester.element(find.text('مرحبًا بعودتك'))), TextDirection.rtl);
+      await login(tester, 'ahmad', 'secret-pass', button: 'تسجيل الدخول');
+      expect(find.text('المحادثات'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await unmount(tester);
+    });
+
+    testWidgets('the bubble for my message sits on the left in RTL', (tester) async {
+      await pumpApp(tester, backend, locale: 'ar', storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'));
+      await tester.tap(find.text('Sara'));
+      await tester.pumpAndSettle();
+      final mine = tester.getCenter(find.text('How are you?')).dx;
+      final theirs = tester.getCenter(find.text('Hello 👋')).dx;
+      expect(mine, lessThan(theirs));
+      expect(find.text('متصل الآن'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('language can be switched from Profile', (tester) async {
+      await pumpApp(tester, backend, storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'));
+      await tester.tap(find.text('Profile'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('العربية'));
+      await tester.pumpAndSettle();
+      expect(find.text('الملف الشخصي'), findsWidgets);
+      expect(find.text('تسجيل الخروج'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await unmount(tester);
     });

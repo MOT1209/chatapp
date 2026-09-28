@@ -10,6 +10,7 @@ import '../../models/conversation.dart';
 import '../../models/user.dart';
 import '../../state/conversations_controller.dart';
 import '../format.dart';
+import '../l10n.dart';
 import '../widgets/state_views.dart';
 import '../widgets/user_avatar.dart';
 
@@ -69,7 +70,7 @@ class _ConversationListState extends State<ConversationList> {
       });
     } on ApiException catch (e) {
       if (!mounted || seq != _searchSeq) return;
-      setState(() => _searchError = e.message);
+      setState(() => _searchError = errorMessage(context.l10n, e));
     } finally {
       if (mounted && seq == _searchSeq) setState(() => _searching = false);
     }
@@ -83,47 +84,49 @@ class _ConversationListState extends State<ConversationList> {
   Future<void> _startChat(User user) async {
     final controller = context.read<ConversationsController>();
     final messenger = ScaffoldMessenger.of(context);
+    final l = context.l10n;
     try {
       final conversation = await controller.openWith(user);
       if (!mounted) return;
       _clearSearch();
       widget.onSelect(conversation);
     } on ApiException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage(l, e))));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 8),
           child: Row(
             children: [
               Expanded(
-                child: Semantics(header: true, child: Text('Chat App', style: theme.textTheme.titleLarge)),
+                child: Semantics(header: true, child: Text(l.appTitle, style: theme.textTheme.titleLarge)),
               ),
               const _ConnectionBadge(),
             ],
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
           child: TextField(
             key: const Key('home.search'),
             controller: _search,
             onChanged: _onQueryChanged,
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-              hintText: 'Search',
+              hintText: l.search,
               prefixIcon: const Icon(Icons.search),
               isDense: true,
               suffixIcon: _query.isEmpty
                   ? null
-                  : IconButton(tooltip: 'Clear search', icon: const Icon(Icons.close), onPressed: _clearSearch),
+                  : IconButton(tooltip: l.clearSearch, icon: const Icon(Icons.close), onPressed: _clearSearch),
             ),
           ),
         ),
@@ -133,12 +136,13 @@ class _ConversationListState extends State<ConversationList> {
   }
 
   Widget _body(BuildContext context) {
+    final l = context.l10n;
     final controller = context.watch<ConversationsController>();
     if (!controller.loaded) {
       if (controller.error != null) {
-        return ErrorView(message: controller.error!.message, onRetry: controller.load);
+        return ErrorView(message: errorMessage(l, controller.error!), onRetry: controller.load);
       }
-      return const LoadingView(label: 'Loading conversations');
+      return LoadingView(label: l.loadingConversations);
     }
 
     final q = _query.toLowerCase();
@@ -152,60 +156,50 @@ class _ConversationListState extends State<ConversationList> {
               )
               .toList();
 
+    Widget tile(Conversation c) => _ConversationTile(
+      conversation: c,
+      currentUserId: controller.currentUserId,
+      selected: c.id == widget.selectedId,
+      onTap: () => widget.onSelect(c),
+    );
+
     if (_query.length < _minQueryLength) {
       if (chats.isEmpty) {
         return EmptyView(
           icon: Icons.chat_outlined,
-          title: q.isEmpty ? 'No conversations yet' : 'No matching chats',
-          message: 'Search for people by name or username to start chatting.',
+          title: q.isEmpty ? l.noConversations : l.noMatchingChats,
+          message: l.searchPeopleHint,
         );
       }
       return RefreshIndicator(
         onRefresh: controller.load,
-        child: ListView.builder(
-          itemCount: chats.length,
-          itemBuilder: (_, i) => _ConversationTile(
-            conversation: chats[i],
-            currentUserId: controller.currentUserId,
-            selected: chats[i].id == widget.selectedId,
-            onTap: () => widget.onSelect(chats[i]),
-          ),
-        ),
+        child: ListView.builder(itemCount: chats.length, itemBuilder: (_, i) => tile(chats[i])),
       );
     }
 
     return ListView(
       children: [
-        if (chats.isNotEmpty) ...[
-          const _SectionHeader('Chats'),
-          for (final c in chats)
-            _ConversationTile(
-              conversation: c,
-              currentUserId: controller.currentUserId,
-              selected: c.id == widget.selectedId,
-              onTap: () => widget.onSelect(c),
-            ),
-        ],
-        const _SectionHeader('People'),
+        if (chats.isNotEmpty) ...[_SectionHeader(l.chats), for (final c in chats) tile(c)],
+        _SectionHeader(l.peopleSection),
         if (_searching)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: LoadingView(label: 'Searching'),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: LoadingView(label: l.searching),
           )
         else if (_searchError != null)
           ListTile(
             leading: Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
             title: Text(_searchError!),
-            trailing: TextButton(onPressed: () => _runSearch(_query), child: const Text('Retry')),
+            trailing: TextButton(onPressed: () => _runSearch(_query), child: Text(l.retry)),
           )
         else if (_people?.isEmpty ?? true)
-          const ListTile(title: Text('No people found'))
+          ListTile(title: Text(l.noPeopleFound))
         else
           for (final user in _people!)
             ListTile(
               leading: UserAvatar(user: user, showPresence: true),
               title: Text(user.displayName),
-              subtitle: Text('@${user.username}'),
+              subtitle: Text('@${user.username}', textDirection: TextDirection.ltr),
               trailing: const Icon(Icons.chat_outlined),
               onTap: () => _startChat(user),
             ),
@@ -220,7 +214,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+    padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 4),
     child: Semantics(
       header: true,
       child: Text(
@@ -247,13 +241,15 @@ class _ConversationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = context.l10n;
     final last = conversation.lastMessage;
     final unread = conversation.unreadCount;
-    final preview = last == null
-        ? 'No messages yet'
-        : last.sender.id == currentUserId
-        ? 'You: ${last.body}'
-        : last.body;
+    final body = last == null ? null : (last.isDeleted ? l.messageDeleted : last.body);
+    final preview = switch (last) {
+      null => l.noMessagesYet,
+      _ when last.sender.id == currentUserId => l.youPrefix(body!),
+      _ => body!,
+    };
     return ListTile(
       selected: selected,
       selectedTileColor: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
@@ -263,17 +259,20 @@ class _ConversationTile extends StatelessWidget {
         preview,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: unread > 0 ? const TextStyle(fontWeight: FontWeight.w600) : null,
+        style: TextStyle(
+          fontWeight: unread > 0 ? FontWeight.w600 : null,
+          fontStyle: last?.isDeleted ?? false ? FontStyle.italic : null,
+        ),
       ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(formatListTimestamp(last?.createdAt ?? conversation.updatedAt), style: theme.textTheme.labelSmall),
+          Text(formatListTimestamp(l, last?.createdAt ?? conversation.updatedAt), style: theme.textTheme.labelSmall),
           if (unread > 0) ...[
             const SizedBox(height: 4),
             Semantics(
-              label: '$unread unread',
+              label: l.unreadCount(unread),
               excludeSemantics: true,
               child: Badge(label: Text(unread > 99 ? '99+' : '$unread')),
             ),
@@ -293,12 +292,13 @@ class _ConnectionBadge extends StatelessWidget {
     final status = context.watch<RealtimeClient>().status;
     if (status == RealtimeStatus.connected) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
+    final l = context.l10n;
     return Semantics(
       liveRegion: true,
       child: Chip(
         visualDensity: VisualDensity.compact,
         avatar: Icon(Icons.cloud_off, size: 16, color: scheme.onSurfaceVariant),
-        label: Text(status == RealtimeStatus.connecting ? 'Connecting…' : 'Offline'),
+        label: Text(status == RealtimeStatus.connecting ? l.connecting : l.offline),
       ),
     );
   }

@@ -1,22 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'core/chat_api.dart';
 import 'core/realtime_client.dart';
 import 'state/conversations_controller.dart';
 import 'state/session_controller.dart';
-import 'state/theme_controller.dart';
+import 'state/settings_controller.dart';
+import 'ui/l10n.dart';
 import 'ui/screens/home_screen.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/theme.dart';
 
 class ChatApp extends StatefulWidget {
-  const ChatApp({super.key, required this.api, required this.realtime, required this.themeController});
+  const ChatApp({super.key, required this.api, required this.realtime, required this.settings});
 
   final ChatApi api;
   final RealtimeClient realtime;
-  final ThemeController themeController;
+  final SettingsController settings;
 
   @override
   State<ChatApp> createState() => _ChatAppState();
@@ -61,17 +64,30 @@ class _ChatAppState extends State<ChatApp> {
       providers: [
         Provider<ChatApi>.value(value: widget.api),
         ChangeNotifierProvider<SessionController>.value(value: _session),
-        ChangeNotifierProvider<ThemeController>.value(value: widget.themeController),
+        ChangeNotifierProvider<SettingsController>.value(value: widget.settings),
         ChangeNotifierProvider<RealtimeClient>.value(value: widget.realtime),
       ],
-      child: Consumer<ThemeController>(
-        builder: (context, theme, _) => MaterialApp(
+      child: Consumer<SettingsController>(
+        builder: (context, settings, _) => MaterialApp(
           navigatorKey: _navigatorKey,
-          title: 'Chat App',
+          onGenerateTitle: (context) => context.l10n.appTitle,
           debugShowCheckedModeBanner: false,
           theme: buildTheme(Brightness.light),
           darkTheme: buildTheme(Brightness.dark),
-          themeMode: theme.mode,
+          themeMode: settings.themeMode,
+          locale: settings.locale,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          builder: (context, child) {
+            // Dates and times follow the UI language (e.g. Arabic month names and digits).
+            Intl.defaultLocale = Localizations.localeOf(context).toLanguageTag();
+            return child!;
+          },
           home: const _AuthGate(),
         ),
       ),
@@ -85,8 +101,12 @@ class _AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
+    final restoreError = session.restoreError;
     return switch (session.status) {
-      SessionStatus.unknown => SplashScreen(error: session.restoreError?.message, onRetry: session.restore),
+      SessionStatus.unknown => SplashScreen(
+        error: restoreError == null ? null : errorMessage(context.l10n, restoreError),
+        onRetry: session.restore,
+      ),
       SessionStatus.unauthenticated => const LoginScreen(),
       SessionStatus.authenticated => _SignedInScope(key: ValueKey(session.user!.id)),
     };

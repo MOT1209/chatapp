@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
 import '../widgets/state_views.dart';
 
 class SplashScreen extends StatelessWidget {
@@ -11,6 +12,7 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = context.l10n;
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
@@ -22,18 +24,14 @@ class SplashScreen extends StatelessWidget {
               children: [
                 Icon(Icons.chat_bubble_rounded, size: 72, color: theme.colorScheme.primary),
                 const SizedBox(height: 16),
-                Text('Chat App', style: theme.textTheme.headlineMedium),
+                Text(l.appTitle, style: theme.textTheme.headlineMedium),
                 const SizedBox(height: 32),
                 if (error == null)
-                  const LoadingView(label: 'Checking your session')
+                  LoadingView(label: l.checkingSession)
                 else ...[
                   ErrorBanner(message: error!),
                   const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: onRetry,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Try again'),
-                  ),
+                  OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: Text(l.tryAgain)),
                 ],
               ],
             ),
