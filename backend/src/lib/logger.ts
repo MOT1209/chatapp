@@ -7,7 +7,6 @@ function log(level: Level, message: string, meta?: Record<string, unknown>): voi
     message,
     ...(meta ?? {}),
   };
-  // eslint-disable-next-line no-console
   console[level === 'debug' ? 'log' : level](JSON.stringify(line));
 }
 
