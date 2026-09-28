@@ -11,6 +11,9 @@ on:
       - 'app/**'
       - '.github/workflows/app.yml'
 
+env:
+  FLUTTER_VERSION: 3.47.5
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -19,24 +22,67 @@ jobs:
         working-directory: app
     steps:
       - uses: actions/checkout@v4
-
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.5
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-
       - name: Install
         run: flutter pub get
-
       - name: Format
         run: dart format --set-exit-if-changed lib test
-
       - name: Analyze
         run: flutter analyze
-
       - name: Test
         run: flutter test
-
       - name: Build web
         run: flutter build web --release
+
+  # Release builds prove each platform compiles; they are not signed or published.
+  build:
+    needs: ci
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            os: ubuntu-latest
+            command: flutter build apk --release
+          - platform: linux
+            os: ubuntu-latest
+            command: flutter build linux --release
+          - platform: windows
+            os: windows-latest
+            command: flutter build windows --release
+          - platform: macos
+            os: macos-latest
+            command: flutter build macos --release
+          - platform: ios
+            os: macos-latest
+            command: flutter build ios --release --no-codesign
+    name: build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.platform == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - if: matrix.platform == 'linux'
+        name: Install Linux toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjsoncpp-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Install
+        run: flutter pub get
+      - name: Build
+        run: ${{ matrix.command }}
