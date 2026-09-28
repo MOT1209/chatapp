@@ -1,6 +1,9 @@
 # UI plan
 
-**Status:** placeholder created in Phase 0. The README references this file; the full UI-architecture write-up will be filled in during Alpha v0.0.1 as the frontend features stabilise. The existing frontend already implements most of what this document will formalise.
+**Status:** placeholder created in Phase 0, describing `frontend/` (React). Since
+then `app/` (Flutter) was designated the canonical client and `frontend/` was
+frozen — see the note at the top of the root `README.md`. This document is kept
+as-is for anyone reviving `frontend/`; it does not describe `app/`.
 
 ## Current implementation (frontend, as of Phase 0)
 

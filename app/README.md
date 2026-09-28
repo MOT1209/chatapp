@@ -1,5 +1,8 @@
 # Chat App — Flutter client (Alpha v0.0.1)
 
+**This is the canonical client** — see the root [`README.md`](../README.md) for
+why. `../frontend/` (React) is frozen.
+
 One codebase for Android, iOS, Windows, macOS, Linux and Web. Talks to the backend
 only through [`docs/api-contract.md`](../docs/api-contract.md) — no mock data in the app.
 
