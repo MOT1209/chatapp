@@ -2,8 +2,10 @@
 
 Node + Express + TypeScript + Prisma + PostgreSQL API for ChatApp.
 
-**Status: Phase 0 — foundation only.**
-No authentication, no messaging, no realtime yet. Only `/health` and the Prisma schema.
+**Status: Alpha v0.0.1.** Authentication, users, direct conversations, messages, and
+realtime (WebSocket) are implemented, per [`../docs/api-contract.md`](../docs/api-contract.md).
+Groups, file sharing, voice, video calls, AI, and message editing are explicitly out
+of scope for this version.
 
 ## Prerequisites
 
@@ -16,9 +18,9 @@ No authentication, no messaging, no realtime yet. Only `/health` and the Prisma 
 cd backend
 npm install
 cp .env.example .env
-# edit .env with your DATABASE_URL
+# edit .env — DATABASE_URL, JWT secrets (openssl rand -base64 48)
 npm run prisma:generate
-npm run prisma:migrate       # creates the initial migration in dev
+npm run prisma:migrate       # applies migrations, creates one on first run if needed
 npm run dev
 ```
 
@@ -29,6 +31,48 @@ curl http://localhost:4000/health
 # {"status":"ok","service":"chatapp-api"}
 ```
 
+### Trying it end to end
+
+```bash
+# Register
+curl -s -X POST http://localhost:4000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"ahmad","email":"ahmad@example.com","password":"correct-horse-battery","displayName":"Ahmad"}'
+
+# Use the returned accessToken for protected routes
+curl -s http://localhost:4000/api/users/me -H "Authorization: Bearer <accessToken>"
+```
+
+WebSocket endpoint: `ws://localhost:4000/ws`. The first frame sent must be
+`{"type":"auth","payload":{"token":"<accessToken>"}}` — see
+[`../docs/api-contract.md`](../docs/api-contract.md) §4 for the full frame protocol.
+
+## Testing
+
+Tests run against a real PostgreSQL database (not mocks) — this is Alpha, and the
+Prisma queries themselves are part of what's being verified.
+
+```bash
+# One-time: create a dedicated test database
+createdb chatapp_test   # or: psql -c "CREATE DATABASE chatapp_test;"
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/chatapp_test?schema=public" \
+  npx prisma migrate deploy
+
+npm test
+```
+
+`vitest.config.ts` points tests at `chatapp_test` on `localhost:5432` regardless of
+what your own `backend/.env` holds (dotenv never overrides an already-set variable,
+and vitest sets these first) — see the comment there if you need a different setup
+locally. Each test file resets the database between tests
+(`tests/helpers/db.ts`); tests run in a single worker since they share one database.
+
+Covers: register, login, session refresh/rotation, logout, authentication
+middleware, user search, profile update, conversation creation (including
+idempotency), message send (including clientId de-duplication), cursor
+pagination, read receipts, message deletion, and the full WebSocket protocol
+(auth handshake, `message:new`, `typing`, `presence`, `read`, heartbeat).
+
 ## Scripts
 
 | Command | Purpose |
@@ -38,8 +82,9 @@ curl http://localhost:4000/health
 | `npm start` | Run compiled server |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run lint` | ESLint |
-| `npm test` | Vitest |
+| `npm test` | Vitest (needs `chatapp_test`, see above) |
 | `npm run prisma:migrate` | Create/apply a dev migration |
+| `npm run prisma:migrate:deploy` | Apply existing migrations without prompting (CI/production) |
 | `npm run prisma:generate` | Regenerate Prisma client |
 | `npm run prisma:studio` | Open Prisma Studio |
 
@@ -49,20 +94,47 @@ curl http://localhost:4000/health
 backend/
 ├── src/
 │   ├── config/           env parsing (Zod)
-│   ├── middleware/       shared HTTP middleware
-│   ├── routes/           HTTP route modules
-│   ├── controllers/      (reserved — Alpha)
-│   ├── services/         (reserved — Alpha)
-│   ├── lib/              infra (logger, prisma client, jwt, …)
-│   ├── types/            shared TS types
+│   ├── middleware/       auth, validation, rate limiting, error handling
+│   ├── routes/           HTTP route modules, mounted under /api
+│   ├── controllers/      thin request/response handlers
+│   ├── services/         business logic + Prisma queries
+│   ├── validators/       Zod schemas per domain
+│   ├── realtime/         WebSocket server + presence hub
+│   ├── lib/              infra: prisma client, jwt, password hashing, errors, logger
+│   ├── types/            shared TS types (Express augmentation, realtime frames)
 │   ├── app.ts            Express factory
-│   └── server.ts         entry point
+│   └── server.ts         entry point — boots HTTP + WebSocket
 ├── prisma/
-│   └── schema.prisma
+│   ├── schema.prisma
+│   └── migrations/
 └── tests/
+    ├── helpers/           test app + DB reset
+    ├── auth.test.ts
+    ├── users.test.ts
+    ├── conversations.test.ts
+    ├── messages.test.ts
+    ├── realtime.test.ts
+    └── health.test.ts
 ```
+
+## Security notes (Alpha-level, not a production audit)
+
+- Passwords hashed with bcrypt (`BCRYPT_ROUNDS`, default 10).
+- Refresh tokens are opaque random strings; only their SHA-256 hash is stored
+  (`Session.refreshHash`). Rotated on every use.
+- Access tokens are short-lived JWTs (`JWT_ACCESS_TTL`, default 15m).
+- Auth, user search, and message-send routes are rate limited
+  (`src/middleware/rate-limit.ts`); disabled automatically when `NODE_ENV=test`.
+- CORS is restricted to `CORS_ORIGIN`; Helmet sets standard security headers.
+- Every input is validated with Zod before it reaches a service.
+- A direct conversation's existence is not confirmed to a non-participant — accessing
+  one you're not a member of returns `NOT_FOUND`, not `FORBIDDEN`.
+- No email/SMTP integration yet — see `docs/api-contract.md` §6.6. Password reset
+  tokens are logged to the server console in development, not emailed.
 
 ## Contract
 
 The HTTP + WebSocket contract lives in [`../docs/api-contract.md`](../docs/api-contract.md).
-Do not diverge from it without updating the doc in the same PR.
+This backend follows it exactly, with one additive, backward-compatible extension
+(message deletion, §3.4.1) documented inline — see that file's revision notes.
+Do not diverge from it further without updating the doc in the same change.

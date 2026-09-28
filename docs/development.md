@@ -83,6 +83,7 @@ Backend adds Prisma commands: `prisma:migrate`, `prisma:generate`, `prisma:studi
 | `JWT_REFRESH_SECRET` | HMAC secret for refresh tokens (Alpha) |
 | `JWT_ACCESS_TTL` | Access token TTL (default `15m`) |
 | `JWT_REFRESH_TTL` | Refresh token TTL (default `30d`) |
+| `BCRYPT_ROUNDS` | bcrypt cost factor for password hashing (default `10`) |
 
 **Never commit `.env`.** `.gitignore` already blocks it — double-check `git status` before every push.
 
@@ -96,6 +97,22 @@ curl http://localhost:4000/health
 # Prisma schema is valid
 cd backend && npx prisma validate
 ```
+
+## Backend tests need a second database
+
+Backend tests run against a real PostgreSQL database, not mocks:
+
+```bash
+createdb chatapp_test   # or: psql -c "CREATE DATABASE chatapp_test;"
+cd backend
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/chatapp_test?schema=public" \
+  npx prisma migrate deploy
+npm test
+```
+
+`backend/vitest.config.ts` points tests at `chatapp_test` regardless of your own
+`.env` — see that file for details. CI creates this database automatically via a
+Postgres service container.
 
 ## Testing before pushing
 
