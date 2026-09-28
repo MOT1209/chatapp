@@ -57,9 +57,7 @@ jobs:
           - platform: macos
             os: macos-latest
             command: flutter build macos --release
-          - platform: ios
-            os: macos-latest
-            command: flutter build ios --release --no-codesign
+          # iOS (`flutter build ios --release --no-codesign`) is deferred until after Alpha.
     name: build (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     defaults:
