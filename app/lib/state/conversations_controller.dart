@@ -90,11 +90,16 @@ class ConversationsController extends ChangeNotifier {
     _notify();
   }
 
-  /// Status, read or delete changes only matter to the list if it's the preview message.
   void applyUpdate(Message message) {
     final c = byId(message.conversationId);
-    if (c == null || c.lastMessage?.id != message.id) return;
-    _replace(c.copyWith(lastMessage: message));
+    if (c == null) return;
+    if (message.isDeleted) {
+      // The server drops deleted messages from both the preview and unreadCount,
+      // and only it knows the previous message, so resync from REST (§4.6).
+      unawaited(load());
+      return;
+    }
+    if (c.lastMessage?.id == message.id) _replace(c.copyWith(lastMessage: message));
   }
 
   void _onFrame(ServerFrame frame) {

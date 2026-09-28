@@ -288,6 +288,22 @@ void main() {
       await unmount(tester);
     });
 
+    testWidgets('an unread message deleted by its sender clears the badge and preview', (tester) async {
+      await pumpApp(tester, backend, storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'));
+      final message = backend.deliverFrom('sara', conversationId, 'Oops, wrong chat');
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: find.byType(Badge), matching: find.text('1')), findsOneWidget);
+
+      message
+        ..['body'] = ''
+        ..['deletedAt'] = '2026-09-28T13:00:00.000Z';
+      backend.push('message:updated', {'message': message});
+      await tester.pumpAndSettle();
+      expect(find.byType(Badge), findsNothing);
+      expect(find.text('You: How are you?'), findsOneWidget);
+      await unmount(tester);
+    });
+
     testWidgets('search finds people and starts a conversation', (tester) async {
       backend.addUser('samir');
       await pumpApp(tester, backend, storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'));

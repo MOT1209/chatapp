@@ -103,7 +103,7 @@ class FakeBackend {
     'id': c.id,
     'type': 'direct',
     'participant': _users[c.a == me ? c.b : c.a],
-    'lastMessage': c.messages.isEmpty ? null : c.messages.last,
+    'lastMessage': c.messages.where((m) => m['deletedAt'] == null).lastOrNull,
     'unreadCount': 0,
     'updatedAt': c.messages.isEmpty ? '2026-09-28T10:00:00.000Z' : c.messages.last['createdAt'],
   };
