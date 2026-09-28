@@ -59,3 +59,4 @@ Run from `frontend/`:
 - `src/components/` holds shared presentational components with no domain knowledge.
 - Tailwind is the only styling system. No CSS modules, no inline style objects.
 - Layout uses CSS logical properties (`ms-*`, `pe-*`, `start-*`, `end-*`) so RTL and LTR both work from one stylesheet.
+"# chatapp" 
