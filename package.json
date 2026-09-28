@@ -1,0 +1,22 @@
+{
+  "name": "chatapp",
+  "private": true,
+  "version": "0.0.0",
+  "description": "ChatApp monorepo — React frontend + Node/Express/Prisma backend",
+  "scripts": {
+    "install:all": "npm install --prefix frontend --legacy-peer-deps && npm install --prefix backend --legacy-peer-deps",
+    "dev": "npm-run-all --parallel dev:*",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "build": "npm --prefix frontend run build && npm --prefix backend run build",
+    "test": "npm --prefix frontend test && npm --prefix backend test",
+    "lint": "npm --prefix frontend run lint && npm --prefix backend run lint",
+    "typecheck": "npm --prefix frontend run typecheck && npm --prefix backend run typecheck"
+  },
+  "devDependencies": {
+    "npm-run-all": "4.1.5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
