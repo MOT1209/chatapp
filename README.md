@@ -151,7 +151,9 @@ npm run typecheck   # both typecheckers
 
 Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 
-- `main` is protected — no direct pushes.
+- `main` is *meant* to be protected — no direct pushes. **This is not yet enforced on
+  GitHub** (a direct `git push` to `main` currently succeeds). Treat the rule as binding
+  anyway; enabling branch protection is an open item — see the Roadmap.
 - Branch prefixes: `app/*`, `backend/*`, `feature/*`, `fix/*`, `chore/*`.
 - Every change opens a PR; CI must be green before merge.
 - Contract changes update `docs/api-contract.md` in the same PR.
@@ -168,7 +170,9 @@ Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 
 - **Phase 0 — Foundation.** ✅ Scaffolding, docs, CI, contract.
 - **Alpha v0.0.1 (this).** ✅ Authentication → users → conversations → messages → realtime. First working E2E flow.
-- **Post-Alpha.** Groups, file upload, presence for group chats, avatars, message editing, real email delivery.
+- **Open item:** enable branch protection on `main` in GitHub (Settings → Branches →
+  require a PR and passing checks before merge). Needs a repo admin.
+- **Post-Alpha.** Groups, file upload, presence for group chats, avatars, message editing, real email delivery, iOS CI build.
 - **Later.** Voice messages, video calls, AI features, notifications.
 
 ## Documentation
