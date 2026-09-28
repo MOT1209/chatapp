@@ -26,7 +26,29 @@
 
 ---
 
-## 2. المتبقي — مرتّب حسب الأولوية
+## 2. ملاحظات على مخطط الـ backend (Phase 0)
+
+قرأتُ `backend/prisma/schema.prisma` بعد أن دفعه المطور الآخر. متوافق مع الـ contract في الجوهري، وخصوصاً:
+
+- `Message.clientId` مع `@@unique([conversationId, clientId])` ← يطابق شرط الـ idempotency الذي طلبته
+- `Session.refreshHash` + `revokedAt` ← يدعم تدوير وإبطال الـ refresh token
+- `Conversation.type = "direct"` مع تعليق أن `group` محجوز لاحقاً ← يطابق `ConversationType` عندي
+- `ConversationMember.lastReadAt` ← أساس صحيح لحالة القراءة
+
+**نقطتان يحتاجان تأكيداً من المطور الآخر** ( ليستا عيوباً، لكنهما استنتاجات يجب اتفقنا عليها):
+
+1. **`User.status` (نص) مقابل `isOnline` (boolean) في الـ contract.**
+   المقترح: `isOnline = (status === "online")` عند بناء الـ response. الواجهة تتعامل مع `isOnline` فقط.
+
+2. **`Message` لا يحتوي `readAt` ولا `status`** — state القراءة مُشتقّة من `ConversationMember.lastReadAt`.
+   المقترح: `readAt = lastReadAt` عندما `lastReadAt > message.createdAt`، وإلا `null`؛ و`status = readAt ? "read" : "sent"`.
+   الواجهة تعرض `status` و`readAt` مباشرة، فهذه الاستنتاجات يجب أن تكون متّسقة.
+
+3. **`title` موجود على `Conversation`** — للآن غير مستخدم (محادثات مباشرة فقط). الواجهة لا تعرضه.
+
+---
+
+## 3. المتبقي — مرتّب حسب الأولوية
 
 ### المرحلة A — التحقق والجودة
 
@@ -92,7 +114,7 @@
 
 ---
 
-## 3. مخاطر ومعروفة يجب تسويةها
+## 4. مخاطر ومعروفة يجب تسويةها
 
 | المشكلة | التفصيل | الأثر |
 | --- | --- | --- |
@@ -106,7 +128,7 @@
 
 ---
 
-## 4. Git Workflow المتبقّي
+## 5. Git Workflow المتبقّي
 
 - فرع العمل: `feat/frontend-<topic>` من `main`
 - commits صغيرة: `test:` · `fix:` · `refactor:` · `chore:`
@@ -116,7 +138,7 @@
 
 ---
 
-## 5. غير المطلوب في v1 (لاحقاً)
+## 6. غير المطلوب في v1 (لاحقاً)
 
 Groups · Files · Voice · Calls · AI · Message editing/deletion · Avatar upload · Presence للدردثات الجماعية.
 

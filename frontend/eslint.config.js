@@ -27,10 +27,9 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
 
-      // eslint-plugin-react-hooks v7 introduced stricter rules that flag pre-existing patterns.
-      // Downgrade to warnings until we refactor the affected components.
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/refs": "warn",
+      // `set-state-in-effect` and `refs` stay at their recommended severity. They
+      // previously flagged real problems — a ref written during render, and state
+      // reset inside an effect — both of which are now fixed rather than silenced.
 
       // A file may only export components. Anything else belongs in a sibling module,
       // which keeps fast-refresh working during development.
@@ -42,6 +41,10 @@ export default tseslint.config(
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+
+      // Floating promises are the most common bug this codebase could ship, since
+      // almost every data path is async. Requires `projectService` above.
+      "@typescript-eslint/no-floating-promises": "error",
 
       // `any` silently disables type checking, so it needs a deliberate opt-out.
       "@typescript-eslint/no-explicit-any": "error",
@@ -66,6 +69,7 @@ export default tseslint.config(
     files: ["**/*.test.{ts,tsx}", "src/test/**", "tests/**"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-floating-promises": "off",
     },
   },
 
