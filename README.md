@@ -2,20 +2,31 @@
 
 A real-time chat application. Two-person build: one Backend/Infrastructure developer, one Frontend/UI developer.
 
-**Status: Pre-Alpha — Phase 0 (Foundation).**
-The frontend runs. The backend is a health-check-only scaffold. Nothing here is production-ready yet.
+**Status: Alpha v0.0.1.** Not production-ready — no deployment infrastructure, no
+email delivery, no load testing. It is the first version where a full
+register → search → chat → realtime flow actually works end to end.
 
-## What Phase 0 delivers
+## What Alpha v0.0.1 delivers
 
 - Working React frontend (unchanged in this phase).
-- Node / Express / TypeScript backend skeleton with `/health`.
-- Prisma schema with the five foundational models (`User`, `Conversation`, `ConversationMember`, `Message`, `Session`) — no business logic yet.
-- Root monorepo scripts for both workspaces.
-- GitHub Actions for both workspaces.
-- PR and issue templates.
-- Documentation: architecture, development, git workflow, API contract, UI plan.
+- Full backend: authentication (register/login/refresh/logout/forgot-reset
+  password), user search and profiles, direct conversations, messages with
+  idempotent send and cursor-paginated history, read receipts, basic message
+  deletion, and realtime over WebSocket (new messages, typing, presence, read
+  receipts).
+- Prisma schema and migrations for `User`, `Conversation`, `ConversationMember`,
+  `Message`, `Session`, `PasswordResetToken`.
+- Input validation, rate limiting, and centralized error handling matching
+  `docs/api-contract.md`'s error envelope exactly.
+- 50+ backend tests (Vitest + Supertest + a real Postgres database), including
+  a full WebSocket protocol test suite.
+- Root monorepo scripts, GitHub Actions (Postgres service + migrations) for
+  both workspaces, PR/issue templates.
 
-Explicitly **not** in Phase 0: authentication logic, message send/read, WebSocket handlers, groups, uploads, calls, AI, notifications. These land in Alpha v0.0.1.
+Explicitly **not** in Alpha v0.0.1: groups, file sharing, voice messages, video
+calls, AI features, notifications, message editing, real email delivery for
+password reset (the token is logged to the console instead — see
+`docs/api-contract.md` §6.6).
 
 ## Architecture
 
@@ -36,8 +47,8 @@ See [`docs/architecture.md`](docs/architecture.md).
 ## Tech stack
 
 - **Frontend** — React 19, TypeScript 5.9, Vite 8, Tailwind 4, TanStack Query 5, React Router 7, Zod, Zustand, RTL Arabic-first UI.
-- **Backend** — Node ≥ 20, Express 4, TypeScript 5.7, Prisma 5, PostgreSQL 14+, Zod, Helmet, CORS.
-- **CI** — GitHub Actions (typecheck, lint, tests, build; backend adds Prisma validate + Postgres service container).
+- **Backend** — Node ≥ 20, Express 4, TypeScript 5.7, Prisma 5, PostgreSQL 14+, Zod, Helmet, CORS, JWT (`jsonwebtoken`), bcrypt (`bcryptjs`), `express-rate-limit`, `ws`.
+- **CI** — GitHub Actions (typecheck, lint, tests, build; backend adds Prisma validate + migrate deploy + Postgres service container).
 
 ## Repository layout
 
@@ -92,6 +103,7 @@ curl http://localhost:4000/health
 | `JWT_REFRESH_SECRET` | HMAC secret for refresh tokens (Alpha) |
 | `JWT_ACCESS_TTL` | Access token TTL (default `15m`) |
 | `JWT_REFRESH_TTL` | Refresh token TTL (default `30d`) |
+| `BCRYPT_ROUNDS` | bcrypt cost factor for password hashing (default `10`) |
 
 `.env` is ignored by git. Never commit real secrets.
 
@@ -136,9 +148,9 @@ Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 
 ## Roadmap
 
-- **Phase 0 — Foundation (this).** Scaffolding, docs, CI, contract.
-- **Alpha v0.0.1.** Authentication → users → conversations → messages → realtime. First working E2E flow.
-- **Post-Alpha.** Groups, file upload, presence for group chats, avatars, message editing/deletion.
+- **Phase 0 — Foundation.** ✅ Scaffolding, docs, CI, contract.
+- **Alpha v0.0.1 (this).** ✅ Authentication → users → conversations → messages → realtime. First working E2E flow.
+- **Post-Alpha.** Groups, file upload, presence for group chats, avatars, message editing, real email delivery.
 - **Later.** Voice messages, video calls, AI features, notifications.
 
 ## Documentation

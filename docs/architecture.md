@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** Phase 0 (foundation). This document describes the shape of the system as it will exist once Alpha v0.0.1 is built. Phase 0 only sets up the scaffolding.
+**Status:** Alpha v0.0.1. The shape below is implemented, not just planned.
 
 ## High-level
 
@@ -14,8 +14,8 @@
 ```
 
 - **Frontend**: React 19 SPA served by Vite in dev, static assets in production.
-- **Backend**: Node/Express HTTP API + WebSocket server (added in Alpha).
-- **Database**: PostgreSQL via Prisma.
+- **Backend**: Node/Express HTTP API + `ws` WebSocket server, both on the same HTTP server/port.
+- **Database**: PostgreSQL via Prisma. Migrations in `backend/prisma/migrations/`.
 - **Contract**: [`api-contract.md`](./api-contract.md) is the single source of truth between the two workspaces.
 
 ## Repository shape
@@ -32,8 +32,9 @@ chatapp/
 
 - Frontend never imports from `backend/` and vice versa.
 - Cross-workspace shared knowledge lives in `docs/api-contract.md`. Any change that breaks the contract must update it in the same PR.
-- Backend `src/lib/` holds infrastructure (logger, prisma client, jwt helpers). No HTTP or DB access from here except through documented interfaces.
-- Backend `src/routes/` mounts routers; controllers/services will be added in Alpha.
+- Backend `src/lib/` holds infrastructure (logger, prisma client, jwt/password helpers, error types). No route or realtime logic here.
+- Backend `src/routes/` mounts routers under `/api` and wires middleware; handlers live in `src/controllers/`, business logic and Prisma queries live in `src/services/`.
+- Backend `src/realtime/` owns the WebSocket server and the in-memory presence hub (`ws-hub.ts`). `src/services/message.service.ts` pushes frames through it directly rather than routes talking to sockets.
 
 ## Environments
 
@@ -43,11 +44,12 @@ chatapp/
 | CI | Build + tests only | Build + tests + Postgres service container |
 | Production | (TBD post-Alpha) | (TBD post-Alpha) |
 
-## What is intentionally **not** here in Phase 0
+## What is intentionally **not** here in Alpha v0.0.1
 
-- Authentication logic (JWT signing, refresh flow).
-- Message send/read/typing pipelines.
-- WebSocket handlers.
-- File uploads, calls, AI, groups, notifications.
-
-These arrive with Alpha v0.0.1.
+- Groups, file uploads, voice messages, video calls, AI features, notifications.
+- Message editing (deletion is implemented — see `docs/api-contract.md` §3.4.1).
+- Real email delivery (password reset tokens are logged, not emailed).
+- Multi-instance realtime: `ws-hub.ts` is an in-memory `Map`, correct for one
+  backend process. Scaling to multiple instances needs a shared layer (e.g.
+  Redis pub/sub) behind the same interface.
+- Deployment infrastructure, load testing, production secrets management.
