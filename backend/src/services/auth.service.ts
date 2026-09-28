@@ -1,0 +1,188 @@
+import { prisma } from '../lib/prisma.js';
+import { hashPassword, verifyPassword } from '../lib/password.js';
+import {
+  generateRefreshToken,
+  hashRefreshToken,
+  refreshTokenExpiryDate,
+  signAccessToken,
+  verifyAccessToken,
+} from '../lib/jwt.js';
+import { conflict, invalidCredentials, unauthenticated, validationError } from '../lib/errors.js';
+import { serializeUser, type UserDTO } from '../lib/serializers.js';
+import { isUniqueConstraintError } from '../lib/prisma-errors.js';
+import crypto from 'node:crypto';
+
+export type AuthTokens = { accessToken: string; refreshToken: string };
+export type SessionMeta = { userAgent?: string; ipAddress?: string };
+
+async function issueSession(userId: string, meta: SessionMeta): Promise<AuthTokens> {
+  const refreshToken = generateRefreshToken();
+  await prisma.session.create({
+    data: {
+      userId,
+      refreshHash: hashRefreshToken(refreshToken),
+      userAgent: meta.userAgent,
+      ipAddress: meta.ipAddress,
+      expiresAt: refreshTokenExpiryDate(),
+    },
+  });
+  return { accessToken: signAccessToken(userId), refreshToken };
+}
+
+export type RegisterInput = {
+  username: string;
+  email: string;
+  password: string;
+  displayName: string;
+};
+
+export async function register(
+  input: RegisterInput,
+  meta: SessionMeta,
+): Promise<{ user: UserDTO } & AuthTokens> {
+  const username = input.username.toLowerCase();
+  const email = input.email.toLowerCase();
+
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ username }, { email }] },
+    select: { username: true, email: true },
+  });
+  if (existing) {
+    const fields: Record<string, string> = {};
+    if (existing.username === username) {
+      fields.username = 'This username is already taken.';
+    }
+    if (existing.email === email) {
+      fields.email = 'This email is already registered.';
+    }
+    throw conflict('Username or email already in use.', fields);
+  }
+
+  const passwordHash = await hashPassword(input.password);
+  try {
+    const user = await prisma.user.create({
+      data: { username, email, passwordHash, displayName: input.displayName },
+    });
+    const tokens = await issueSession(user.id, meta);
+    return { user: serializeUser(user, { includeEmail: true }), ...tokens };
+  } catch (err) {
+    // Race: two requests registered the same username/email between the check above
+    // and the insert. Report it the same way as the pre-check, not as a 500.
+    if (isUniqueConstraintError(err)) {
+      throw conflict('Username or email already in use.');
+    }
+    throw err;
+  }
+}
+
+export type LoginInput = { identifier: string; password: string };
+
+export async function login(
+  input: LoginInput,
+  meta: SessionMeta,
+): Promise<{ user: UserDTO } & AuthTokens> {
+  const identifier = input.identifier.toLowerCase();
+  const user = await prisma.user.findFirst({
+    where: { OR: [{ username: identifier }, { email: identifier }] },
+  });
+  // Same error for "no such user" and "wrong password" — see docs/api-contract.md §3.1,
+  // this endpoint must not be usable to enumerate accounts.
+  if (!user) {
+    throw invalidCredentials();
+  }
+  const valid = await verifyPassword(input.password, user.passwordHash);
+  if (!valid) {
+    throw invalidCredentials();
+  }
+
+  const tokens = await issueSession(user.id, meta);
+  return { user: serializeUser(user, { includeEmail: true }), ...tokens };
+}
+
+export async function refresh(refreshToken: string, meta: SessionMeta): Promise<AuthTokens> {
+  const refreshHash = hashRefreshToken(refreshToken);
+  const session = await prisma.session.findUnique({ where: { refreshHash } });
+
+  if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
+    throw unauthenticated('Refresh token is invalid or expired.');
+  }
+
+  // Rotate: the old token is dead the moment a new one is issued from it.
+  await prisma.session.update({
+    where: { id: session.id },
+    data: { revokedAt: new Date() },
+  });
+
+  return issueSession(session.userId, meta);
+}
+
+/**
+ * Revokes every active session for a user. Used by logout.
+ *
+ * The contract's logout request carries no body — just whatever access token the
+ * frontend still has — so there is no single refresh token to target. Alpha treats
+ * "logout" as "sign out everywhere" rather than tracking per-device sessions.
+ */
+export async function logoutAllSessions(userId: string): Promise<void> {
+  await prisma.session.updateMany({
+    where: { userId, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+}
+
+/** Best-effort: identifies the caller from a bearer token without throwing. */
+export function tryIdentifyFromAccessToken(authorizationHeader: string | undefined): string | null {
+  if (!authorizationHeader?.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = authorizationHeader.slice('Bearer '.length).trim();
+  const result = verifyAccessToken(token);
+  return result.ok ? result.userId : null;
+}
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  // Always succeeds from the caller's perspective — see docs/api-contract.md §3.1,
+  // this must not reveal whether the address is registered.
+  if (!user) {
+    return;
+  }
+
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+    },
+  });
+
+  // Alpha has no email/SMTP integration (out of scope — see backend/README.md).
+  // Logging the link keeps the flow testable end-to-end locally without one.
+  console.log(`[dev-only] Password reset token for ${user.email}: ${rawToken}`);
+}
+
+export async function resetPassword(rawToken: string, newPassword: string): Promise<void> {
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+
+  if (!record || record.usedAt || record.expiresAt.getTime() < Date.now()) {
+    throw validationError(
+      { token: 'This reset link is invalid or has expired.' },
+      'This reset link is invalid or has expired.',
+    );
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
+    prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+    // A password reset should kill every existing session, stolen or not.
+    prisma.session.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+  ]);
+}
