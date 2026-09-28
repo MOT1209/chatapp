@@ -10,6 +10,7 @@ const EnvSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(1, 'JWT_REFRESH_SECRET is required'),
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL: z.string().default('30d'),
+  BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

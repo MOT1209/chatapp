@@ -1,6 +1,5 @@
-// ChatApp — Phase 0 Prisma schema
-// Foundational models only. No business logic here yet.
-// Extend in Alpha v0.0.1 (auth, messages, realtime).
+// ChatApp — Alpha v0.0.1
+// Matches docs/api-contract.md. Any shape change here must be reflected there.
 
 generator client {
   provider = "prisma-client-js"
@@ -12,82 +11,101 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  username      String   @unique
-  displayName   String
-  passwordHash  String
-  avatarUrl     String?
-  status        String   @default("offline")
-  lastSeenAt    DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String    @id @default(cuid())
+  email        String    @unique
+  username     String    @unique
+  displayName  String
+  passwordHash String
+  avatarUrl    String?
+  isOnline     Boolean   @default(false)
+  lastSeenAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  memberships   ConversationMember[]
-  messages      Message[]
-  sessions      Session[]
+  memberships         ConversationMember[]
+  messages             Message[]
+  sessions              Session[]
+  passwordResetTokens   PasswordResetToken[]
 
   @@index([email])
   @@index([username])
 }
 
 model Conversation {
-  id          String   @id @default(cuid())
-  type        String   @default("direct") // "direct" | "group" (group reserved for later)
-  title       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  type       String   @default("direct") // "direct" only in v1; "group" reserved
+  // Deterministic key for a 1:1 conversation: the two member ids sorted and joined.
+  // Guarantees POST /api/conversations is idempotent at the database level.
+  directKey  String?  @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now())
 
-  members     ConversationMember[]
-  messages    Message[]
+  members  ConversationMember[]
+  messages Message[]
 
   @@index([updatedAt])
 }
 
 model ConversationMember {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   conversationId String
   userId         String
-  role           String   @default("member") // "member" | "owner"
-  joinedAt       DateTime @default(now())
-  lastReadAt     DateTime?
+  joinedAt       DateTime  @default(now())
 
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
   @@index([userId])
 }
 
 model Message {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   conversationId String
   senderId       String
-  clientId       String?  // for idempotent send
+  clientId       String
   body           String
-  createdAt      DateTime @default(now())
-  editedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  readAt         DateTime?
   deletedAt      DateTime?
 
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
-  @@unique([conversationId, clientId])
+  // Backbone of the idempotent send flow: a retried POST with the same
+  // (senderId, clientId) must return the original row, never a duplicate.
+  @@unique([senderId, clientId])
   @@index([conversationId, createdAt])
+  @@index([conversationId, senderId, readAt])
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  userId       String
-  refreshHash  String   @unique
-  userAgent    String?
-  ipAddress    String?
-  createdAt    DateTime @default(now())
-  expiresAt    DateTime
-  revokedAt    DateTime?
+  id          String    @id @default(cuid())
+  userId      String
+  // SHA-256 of the opaque refresh token. The raw token is never stored.
+  refreshHash String    @unique
+  userAgent   String?
+  ipAddress   String?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  // SHA-256 of the token emailed to the user. The raw token is never stored.
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
