@@ -34,6 +34,8 @@ class ApiClient {
 
   Future<dynamic> patch(String path, {Object? body}) => _request('PATCH', path, body: body);
 
+  Future<dynamic> delete(String path) => _request('DELETE', path);
+
   Future<dynamic> _request(
     String method,
     String path, {
@@ -76,6 +78,11 @@ class ApiClient {
     );
     if (auth && !isRetry && error.code == 'TOKEN_EXPIRED' && await refreshTokens()) {
       return _request(method, path, body: body, query: query, auth: auth, isRetry: true);
+    }
+    // The token itself is invalid (not merely expired), so the session cannot recover.
+    if (auth && error.code == 'UNAUTHENTICATED' && path != '/auth/logout') {
+      await tokens.clear();
+      onSessionExpired?.call();
     }
     throw error;
   }

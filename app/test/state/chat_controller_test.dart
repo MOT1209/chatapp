@@ -20,6 +20,8 @@ void main() {
   late User me;
   late User sara;
   final readCalls = <String>[];
+  final sentFrames = <Map<String, dynamic>>[];
+  final updated = <Message>[];
 
   setUp(() async {
     backend = FakeBackend();
@@ -28,6 +30,8 @@ void main() {
     conversationId = backend.addConversation('ahmad', 'sara', messages: [('sara', 'Hi')]);
     frames = StreamController<ServerFrame>.broadcast();
     readCalls.clear();
+    sentFrames.clear();
+    updated.clear();
 
     final api = ChatApi(
       ApiClient(
@@ -42,6 +46,8 @@ void main() {
       me: me,
       conversation: Conversation(id: conversationId, participant: sara, unreadCount: 1, updatedAt: DateTime.utc(2026)),
       onRead: readCalls.add,
+      onMessageUpdated: updated.add,
+      sendFrame: (type, payload) => sentFrames.add({'type': type, ...payload}),
     );
     await chat.load();
   });
@@ -124,5 +130,70 @@ void main() {
     frames.add(const ServerFrame('presence', {'userId': 'u_sara', 'isOnline': true, 'lastSeenAt': null}));
     await settle();
     expect(chat.participant.isOnline, isTrue);
+  });
+
+  group('typing', () {
+    test('throttles "true" and sends one "false" when the composer empties', () {
+      chat
+        ..onComposing(true)
+        ..onComposing(true)
+        ..onComposing(true);
+      expect(sentFrames.map((f) => f['isTyping']), [true]);
+      chat.onComposing(false);
+      expect(sentFrames.map((f) => f['isTyping']), [true, false]);
+      expect(sentFrames.every((f) => f['type'] == 'typing' && f['conversationId'] == conversationId), isTrue);
+    });
+
+    test('sending a message stops typing', () async {
+      chat.onComposing(true);
+      await chat.send('hi');
+      expect(sentFrames.map((f) => f['isTyping']), [true, false]);
+    });
+
+    test("the participant's typing clears on their next message", () async {
+      frames.add(ServerFrame('typing', {'conversationId': conversationId, 'userId': sara.id, 'isTyping': true}));
+      await settle();
+      expect(chat.participantTyping, isTrue);
+      frames.add(ServerFrame('message:new', {'message': backend.deliverFrom('sara', conversationId, 'Done')}));
+      await settle();
+      expect(chat.participantTyping, isFalse);
+    });
+
+    test('typing in another conversation is ignored', () async {
+      frames.add(const ServerFrame('typing', {'conversationId': 'other', 'userId': 'u_sara', 'isTyping': true}));
+      await settle();
+      expect(chat.participantTyping, isFalse);
+    });
+  });
+
+  group('delete', () {
+    test('deletes my message and reports the in-place update', () async {
+      await chat.send('Oops');
+      final mine = chat.messages.last;
+      await chat.delete(mine);
+      expect(chat.messages.last.isDeleted, isTrue);
+      expect(chat.messages.last.body, isEmpty);
+      expect(updated.single.id, mine.id);
+      expect(backend.messagesIn(conversationId).last['deletedAt'], isNotNull);
+    });
+
+    test("never deletes someone else's message", () async {
+      await chat.delete(chat.messages.first);
+      expect(chat.messages.first.isDeleted, isFalse);
+      expect(backend.requests.where((r) => r.method == 'DELETE'), isEmpty);
+    });
+
+    test('a deletion update is applied even over a read message', () async {
+      await chat.send('Seen then deleted');
+      final mine = chat.messages.last;
+      frames.add(ServerFrame('read', {'conversationId': conversationId, 'userId': sara.id, 'messageId': mine.id}));
+      await settle();
+      final json = backend.messagesIn(conversationId).last
+        ..['body'] = ''
+        ..['deletedAt'] = '2026-09-28T13:00:00.000Z';
+      frames.add(ServerFrame('message:updated', {'message': json}));
+      await settle();
+      expect(chat.messages.last.isDeleted, isTrue);
+    });
   });
 }
