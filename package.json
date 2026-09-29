@@ -4,7 +4,7 @@
   "version": "0.0.1-alpha",
   "description": "ChatApp monorepo — Flutter client (app/) + Node/Express/Prisma backend (backend/)",
   "scripts": {
-    "install:all": "npm install --prefix backend && cd app && flutter pub get",
+    "install:all": "npm install && npm install --prefix backend && cd app && flutter pub get",
     "dev": "npm-run-all --parallel dev:*",
     "dev:backend": "npm --prefix backend run dev",
     "dev:app": "cd app && flutter run -d chrome --web-port 5173",

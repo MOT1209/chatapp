@@ -76,7 +76,7 @@ npm run prisma:generate && npm run prisma:migrate && cd ..
 # App (needs the Flutter SDK)
 cd app && flutter pub get && cd ..
 
-# Optional: root scripts
+# Root scripts (shortcut for all of the above: `npm run install:all`)
 npm install
 npm run dev          # backend + Flutter web on http://localhost:5173 in parallel
 ```

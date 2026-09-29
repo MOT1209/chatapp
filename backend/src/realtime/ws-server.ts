@@ -194,16 +194,40 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
   return wss;
 }
 
+// Presence writes are async; without ordering, a fast reconnect can land its
+// `isOnline=true` write before the previous socket's `isOnline=false` write and
+// leave a connected user stored as offline. Serialize per user, and decide from
+// the hub's state at execution time rather than at scheduling time.
+const presenceQueue = new Map<string, Promise<void>>();
+
+function runPresenceTask(userId: string, task: () => Promise<void>): Promise<void> {
+  const previous = presenceQueue.get(userId) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(task);
+  presenceQueue.set(userId, next);
+  const cleanup = (): void => {
+    if (presenceQueue.get(userId) === next) {
+      presenceQueue.delete(userId);
+    }
+  };
+  next.then(cleanup, cleanup);
+  return next;
+}
+
 async function handleConnect(userId: string, socket: WebSocket): Promise<void> {
   const isFirstConnection = wsHub.add(userId, socket);
   if (!isFirstConnection) {
     return;
   }
-  await prisma.user.update({ where: { id: userId }, data: { isOnline: true } });
-  const contacts = await getContactIds(userId);
-  for (const contactId of contacts) {
-    wsHub.sendToUser(contactId, { type: 'presence', payload: { userId, isOnline: true, lastSeenAt: null } });
-  }
+  await runPresenceTask(userId, async () => {
+    if (!wsHub.isOnline(userId)) {
+      return; // Disconnected again before this task ran; that path owns the state.
+    }
+    await prisma.user.update({ where: { id: userId }, data: { isOnline: true } });
+    const contacts = await getContactIds(userId);
+    for (const contactId of contacts) {
+      wsHub.sendToUser(contactId, { type: 'presence', payload: { userId, isOnline: true, lastSeenAt: null } });
+    }
+  });
 }
 
 async function handleDisconnect(userId: string, socket: WebSocket): Promise<void> {
@@ -211,15 +235,20 @@ async function handleDisconnect(userId: string, socket: WebSocket): Promise<void
   if (!wasLastConnection) {
     return;
   }
-  const lastSeenAt = new Date();
-  await prisma.user.update({ where: { id: userId }, data: { isOnline: false, lastSeenAt } });
-  const contacts = await getContactIds(userId);
-  for (const contactId of contacts) {
-    wsHub.sendToUser(contactId, {
-      type: 'presence',
-      payload: { userId, isOnline: false, lastSeenAt: lastSeenAt.toISOString() },
-    });
-  }
+  await runPresenceTask(userId, async () => {
+    if (wsHub.isOnline(userId)) {
+      return; // Reconnected before this task ran; the user is online.
+    }
+    const lastSeenAt = new Date();
+    await prisma.user.update({ where: { id: userId }, data: { isOnline: false, lastSeenAt } });
+    const contacts = await getContactIds(userId);
+    for (const contactId of contacts) {
+      wsHub.sendToUser(contactId, {
+        type: 'presence',
+        payload: { userId, isOnline: false, lastSeenAt: lastSeenAt.toISOString() },
+      });
+    }
+  });
 }
 
 async function handleTyping(
@@ -288,7 +317,17 @@ function parseFrame(raw: RawData): ValidatedClientFrame | null {
 }
 
 function send(socket: WebSocket, frame: ServerFrame): void {
-  if (socket.readyState === socket.OPEN) {
-    socket.send(JSON.stringify(frame));
+  if (socket.readyState !== socket.OPEN) {
+    return;
+  }
+  try {
+    socket.send(JSON.stringify(frame), (err?: Error) => {
+      if (err) {
+        socket.terminate();
+      }
+    });
+  } catch (err) {
+    logger.warn('ws send failed', { err: err instanceof Error ? err.message : String(err) });
+    socket.terminate();
   }
 }

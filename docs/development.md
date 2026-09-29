@@ -41,10 +41,10 @@ cd backend && npm run dev
 cd app && flutter run -d chrome --web-port 5173
 ```
 
-Or from the repo root, if the monorepo scripts are installed:
+Or from the repo root (installs root + backend dependencies and runs `flutter pub get`):
 
 ```bash
-npm install
+npm run install:all
 npm run dev            # runs both in parallel
 ```
 

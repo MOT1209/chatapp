@@ -223,7 +223,12 @@ class RealtimeClient extends ChangeNotifier {
   }
 
   void _send(String type, Map<String, dynamic> payload) {
-    _connection?.send(jsonEncode({'type': type, 'payload': payload}));
+    try {
+      _connection?.send(jsonEncode({'type': type, 'payload': payload}));
+    } on StateError {
+      // The sink closed between the status check and the write; the close
+      // handler will reconnect, and REST stays the source of truth.
+    }
   }
 
   void _teardown() {
