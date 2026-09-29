@@ -35,12 +35,13 @@ class ChatApi {
   }
 
   /// Contract §3.1: a failed logout request must not block logout on the client.
+  ///
+  /// The refresh token is sent too: the access token lives 15 minutes, and once it
+  /// has expired it is the only thing that lets the server revoke the session.
   Future<void> logout() async {
     try {
-      // Send the refresh token too: the access token is usually expired by the
-      // time a user logs out, and without it the server could not revoke anything.
       final stored = await _tokens.read();
-      await client.post('/auth/logout', body: {if (stored != null) 'refreshToken': stored.refreshToken});
+      await client.post('/auth/logout', body: stored == null ? null : {'refreshToken': stored.refreshToken});
     } on Exception {
       // Tokens are cleared below regardless.
     }

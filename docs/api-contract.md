@@ -152,7 +152,7 @@ Validation:
 | --- | --- |
 | `username` | required, 3–30 chars, `a-z0-9_.`, must be unique |
 | `email` | required, valid email, must be unique |
-| `password` | required, min 8 chars, max 72 (bcrypt limit) |
+| `password` | required, min 8 chars, max **72 bytes** (bcrypt only uses the first 72 bytes; non-Latin letters take 2 or more bytes each, so e.g. 36 Arabic letters is the limit) |
 | `displayName` | required, 1–50 chars |
 
 Success response:
@@ -161,7 +161,7 @@ Success response:
 {
   "user": { "id": "...", "username": "ahmad", "email": "ahmad@example.com", "displayName": "Ahmad", "avatarUrl": null, "isOnline": false, "lastSeenAt": null, "createdAt": "2026-09-28T10:00:00.000Z" },
   "accessToken": "eyJhbGciOi...",
-  "refreshToken": "9f2c…(96 hex chars, opaque)"
+  "refreshToken": "eyJhbGciOi..."
 }
 ```
 
@@ -188,13 +188,13 @@ Errors: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401).
 Request:
 
 ```json
-{ "refreshToken": "9f2c…(96 hex chars, opaque)" }
+{ "refreshToken": "eyJhbGciOi..." }
 ```
 
 Success response — **both** tokens are returned, because the backend is free to rotate the refresh token:
 
 ```json
-{ "accessToken": "eyJhbGciOi...", "refreshToken": "9f2c…(96 hex chars, opaque)" }
+{ "accessToken": "eyJhbGciOi...", "refreshToken": "eyJhbGciOi..." }
 ```
 
 Errors: `UNAUTHENTICATED` (401) when the refresh token is missing, malformed, expired or revoked.
@@ -202,19 +202,24 @@ Errors: `UNAUTHENTICATED` (401) when the refresh token is missing, malformed, ex
 #### `POST /api/auth/logout` → 204
 
 **Logs out every session for the account — every device, not just the caller's.**
-The caller is identified from either (a) a still-valid access token in the
-`Authorization` header, or (b) the optional body field `{ "refreshToken": "..." }`
-(the client sends it because the access token is usually expired by the time a
-user logs out). Either is enough; both are best-effort — a missing, expired or
-unknown credential is not an error and revokes nothing. All of that user's
-active sessions are revoked at once. There is no per-device "log out this
-device only" in v1 — logging out on a phone also signs out the desktop
-client, the web tab, everything.
+The caller is identified by whichever of these it sends (either or both):
+
+- `Authorization: Bearer <accessToken>` — while it is still valid.
+- An optional JSON body `{ "refreshToken": "<token>" }` — **additive since the post-Alpha hardening; older clients that send no body keep working.** This is what makes logout work after the 15-minute access token has expired, which is the normal case for a user who returns after a pause. The frontend sends it on every logout.
+
+Every identity found has all its active sessions revoked at once. There is no
+per-device "log out this device only" in v1 — logging out on a phone also
+signs out the desktop client, the web tab, everything.
 
 The frontend clears local storage and returns to the login screen regardless
-of what the server did. A failure here must not block logout on the client,
-and neither must a missing/expired access token — the endpoint always
-responds 204.
+of what the server did. A failure here must not block logout on the client.
+The endpoint **always** responds 204: a missing, expired, unknown or malformed
+token or body is not an error and identifies no one (it never affects another
+user's sessions).
+
+> Limitation that remains: an access token that was already issued stays valid
+> until it expires (up to 15 minutes) even after logout, because it is a
+> stateless JWT.
 
 #### `POST /api/auth/forgot-password` → 202
 
@@ -491,13 +496,6 @@ most, so this is a size-limit backstop, not a business rule).
 | `error` | `{ "code": "UNAUTHENTICATED", "message": "..." }` — same `code` values as REST §1.2 |
 
 ### 4.5 Delivery expectations
-
-The database is the source of truth; the socket is best-effort push. A message
-is committed before any frame is sent, so a failed or closed socket never fails
-or duplicates a send: the REST call still succeeds, a retry with the same
-`clientId` returns the original message, and the recipient sees it through
-history (§4.6 reload) on the next connect. A socket whose write fails is
-terminated by the server; the client's reconnect logic takes over.
 
 | Event | Target latency |
 | --- | --- |

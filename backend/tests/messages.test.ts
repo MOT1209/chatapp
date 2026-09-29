@@ -109,6 +109,27 @@ describe('POST /api/conversations/:id/messages', () => {
   });
 });
 
+describe('GET /api/conversations/:id/messages — cursor validation', () => {
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+
+  it.each([
+    ['garbage that is not base64 JSON', 'not-a-cursor'],
+    ['valid JSON with an unparseable date', encode({ id: 'x', createdAt: 'not-a-date' })],
+    ['valid JSON with a missing id', encode({ createdAt: '2026-01-01T00:00:00.000Z' })],
+  ])('rejects %s with VALIDATION_ERROR instead of a 500', async (_label, cursor) => {
+    const a = await registerUser(app, { username: 'curA' });
+    const b = await registerUser(app, { username: 'curB' });
+    const conversationId = await createConversation(a, b);
+
+    const res = await request(app)
+      .get(`/api/conversations/${conversationId}/messages`)
+      .set('Authorization', `Bearer ${a.accessToken}`)
+      .query({ cursor });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
 describe('GET /api/conversations/:id/messages', () => {
   it('returns messages oldest to newest and paginates with a cursor', async () => {
     const a = await registerUser(app, { username: 'pageA' });

@@ -156,6 +156,9 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Logout'));
       await tester.pumpAndSettle();
       expect(find.text('Welcome back'), findsOneWidget);
+      // The server can only revoke the session after the access token expired if it gets the refresh token.
+      final logoutRequest = backend.requests.lastWhere((r) => r.url.path == '/api/auth/logout');
+      expect(logoutRequest.body, contains('refreshToken'));
       await unmount(tester);
     });
   });

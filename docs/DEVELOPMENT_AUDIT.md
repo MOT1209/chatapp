@@ -3,6 +3,11 @@
 **Phase 0 deliverable.** Audit of `main` at `c94ae2b` (tag `v0.0.1-alpha`).
 No production code was changed to produce this document.
 
+> **Read §13 first.** `main` moved while this audit was being written: PR #12
+> fixed several of these findings before the audit was merged. Sections 1 to 12
+> are the original audit of the tag and are kept unchanged as the historical
+> record. §13 is the current status of every finding, re-checked on a later `main`.
+
 ## 1. Method and evidence levels
 
 Every finding carries one evidence level. Do not treat them as equal.
@@ -187,3 +192,36 @@ Each PR must update `docs/api-contract.md` if it changes a wire behavior (only F
 - No load test, no penetration test, no dependency license review.
 - No verification of GitHub-side settings (rulesets, branch protection, App permissions). The 403 on tag push seen earlier was a GitHub permission issue outside the code base; the tag was later pushed successfully from a developer machine.
 - Flutter behaviour and UI quality are unverified until someone runs the SDK.
+
+## 13. Status update (re-baselined after PR #12)
+
+**Why this section exists.** I audited the tag `v0.0.1-alpha` (`c94ae2b`) and only
+afterwards noticed that `main` had already moved (PR #12, commits `4771d13` and
+`e22f73b`, written by another session). The audit was merged without first
+re-checking it against that newer `main`. That was my process error: the
+document therefore overstated what was open. This section corrects it.
+
+**Re-baseline on `main` at `5653073` (executed):** typecheck clean, lint clean,
+**88 / 88** tests pass. The probes from §4/§5 were re-run against it.
+
+| ID | Status now | Evidence |
+| --- | --- | --- |
+| F-01 logout after expiry | **Fixed in this PR** (backend + Flutter client) | Was reproduced open on `main`: `logout 204`, then `refresh 200`. Now covered by 3 new tests. Flutter side edited but **not executed**. |
+| F-02 refresh rotation race | **Fixed by #12** | Re-probe: 6 concurrent refreshes → `401,401,200,401,401,401`, 1 live session. Also revokes all sessions when a rotated-out token is replayed. Trade-off to know: a client that lost the response and retries with the old token signs the user out everywhere. |
+| F-03 same-`clientId` race | **Fixed by #12** | Re-probe: `200 ×7, 201 ×1`. |
+| F-04 presence | **Mostly fixed by #12** (READ) | Boot reset, protocol ping/pong with terminate, graceful WS shutdown. **Still open:** connect/disconnect write ordering can leave `isOnline=false` for a connected user. |
+| F-05 WS outlives token/logout/reset | **Open** | Not addressed. |
+| F-06 WS frame limits | **Partly fixed by #12** (READ) | Per-socket budget for `typing`/`read`. **Still open:** per-user connection cap; membership lookup per `typing` frame. |
+| F-07 dependency vulnerabilities | **Open** | Re-run: still 4 vulnerabilities (2 high) on `express@4.21.2`. #12 added an `npm audit` CI step but with `continue-on-error: true`, so it does not gate anything. |
+| F-08 bad cursor date → 500 | **Fixed in this PR** | Was `500` on `main`. 3 new test cases; the unparseable-date one failed before the fix. |
+| F-09 `javascript:` avatar URL | **Fixed in this PR** | Was `200` on `main`; 4 new tests (`javascript:`, `data:`, `file:`, `ftp:`). |
+| F-10 search wildcard | **Fixed by #12** | Re-probe: `q=%%` → 0 results. |
+| F-11 password bytes | **Fixed in this PR** | Was `200` (tail ignored) on `main`. Register and reset now reject > 72 bytes. Login is intentionally unchanged so existing long passwords still work. 3 new tests. |
+| F-12 auth rate limits | **Worse in one respect** | #12 put `/auth/refresh` under the same shared `authRateLimit` bucket as login/register/reset (20 per 15 min per IP). Refresh is routine traffic, so it now competes with login for one small budget. Per-route budgets and a per-identifier login limiter are still open. |
+| F-13 login timing | **Fixed by #12** (READ) | Dummy-hash comparison for unknown users. Timing itself was not measured. |
+| F-14 reset-token single use | **Half fixed by #12** | Newer link supersedes older ones. **Still open:** the "claim" is check-then-act, so two concurrent resets with one token are not prevented (READ). |
+| F-15 to F-20 | **Open** | Not addressed. |
+| F-21 to F-26 | **Open** | Except: #12 pinned JWT verification to HS256 and removed credentialed CORS (both good, neither was in this audit). |
+
+**Open P1 items after this PR:** F-05, F-07, and the remaining halves of F-04 and F-06.
+**Proposed next block:** F-07 (dependency bump plus a CI audit that fails on high), then F-05 (WebSocket vs token lifetime).
