@@ -450,6 +450,7 @@ Errors:
 | Protocol | raw WebSocket, no library. Frame format is JSON text |
 | Auth | **not** a query parameter. The first frame the client sends must be `auth` (§4.3). The backend closes the socket with code `4401` if it does not arrive within 5 seconds |
 | Authorization | authentication alone is not authorization. Every `typing` and `read` frame is checked against real conversation membership, the same check the REST endpoints use. A frame for a conversation the sender does not belong to is dropped silently — no error frame, no broadcast to anyone, connection stays open. Silent rather than an explicit `FORBIDDEN` on purpose: it doesn't confirm or deny that the conversation exists to someone outside it |
+| Lifetime | a socket never outlives the credentials it authenticated with. The server closes it with code `4401` when the access token in its `auth` frame expires, and immediately when the user logs out (all sessions) or resets their password. The client treats `4401` as "refresh, then reconnect"; if the refresh fails it returns to Login. A normal `/auth/refresh` does not close the socket |
 | Heartbeat | client sends `ping` every 25s. The server replies `pong`. The frontend tolerates up to 2 missed pongs before forcing a reconnect |
 | Reconnect | client-side only, exponential backoff 1s → 2s → 4s → 8s → 15s cap, with jitter. The frontend never reconnects automatically while the tab is hidden, and retries once immediately on `online` |
 

@@ -304,3 +304,73 @@ describe('websocket auth edge cases', () => {
     expect((await prisma.user.findUniqueOrThrow({ where: { id: a.user.id } })).isOnline).toBe(false);
   });
 });
+
+function closeCode(socket: WebSocket): Promise<number> {
+  return new Promise((resolve) => socket.once('close', (code: number) => resolve(code)));
+}
+
+describe('websocket lifetime is bound to its credentials (F-05)', () => {
+  it('closes with 4401 when the access token it authenticated with expires', async () => {
+    const { a } = await pair();
+    const shortLived = jwt.sign({ sub: a.user.id }, env.JWT_ACCESS_SECRET, { expiresIn: 1 });
+    const socket = await authed(shortLived);
+    expect(await closeCode(socket)).toBe(4401);
+  });
+
+  it('closes every socket of the user with 4401 on logout', async () => {
+    const { a, b } = await pair();
+    const s1 = await authed(a.accessToken);
+    const s2 = await authed(a.accessToken);
+    const other = await authed(b.accessToken);
+    const codes = Promise.all([closeCode(s1), closeCode(s2)]);
+
+    const res = await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${a.accessToken}`);
+    expect(res.status).toBe(204);
+
+    expect(await codes).toEqual([4401, 4401]);
+    expect(other.readyState).toBe(WebSocket.OPEN); // other users are untouched
+    other.close();
+  });
+
+  it('closes the user sockets with 4401 after a password reset', async () => {
+    const { a } = await pair();
+    const socket = await authed(a.accessToken);
+    const code = closeCode(socket);
+    const reset = await authService.requestPasswordReset(a.user.email);
+    const res = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: reset?.resetToken, newPassword: 'a-brand-new-password' });
+    expect(res.status).toBe(204);
+    expect(await code).toBe(4401);
+  });
+
+  it('does not close the socket on a normal token refresh', async () => {
+    const { a } = await pair();
+    const socket = await authed(a.accessToken);
+    const res = await request(app).post('/api/auth/refresh').send({ refreshToken: a.refreshToken });
+    expect(res.status).toBe(200);
+    await sleep(300);
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+    socket.close();
+  });
+
+  it('closeUser tolerates a socket whose close() throws and still closes the others', () => {
+    const broken = fakeSocket();
+    (broken as unknown as { close: () => void }).close = () => {
+      throw new Error('already gone');
+    };
+    const healthy = fakeSocket();
+    const close = vi.fn();
+    (healthy as unknown as { close: typeof close }).close = close;
+    wsHub.add('hub-user-5', asWs(broken));
+    wsHub.add('hub-user-5', asWs(healthy));
+    try {
+      expect(() => wsHub.closeUser('hub-user-5', 4401, 'x')).not.toThrow();
+      expect(close).toHaveBeenCalledWith(4401, 'x');
+      expect(broken.terminate).toHaveBeenCalledTimes(1);
+    } finally {
+      wsHub.remove('hub-user-5', asWs(broken));
+      wsHub.remove('hub-user-5', asWs(healthy));
+    }
+  });
+});

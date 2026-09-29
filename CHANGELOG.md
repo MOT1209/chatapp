@@ -6,6 +6,7 @@ All notable changes to ChatApp are documented here.
 
 ### Fixed
 
+- **A WebSocket no longer outlives its credentials.** The server closes it with `4401` when the access token used to authenticate expires, and on logout or password reset. The Flutter client already refreshes and reconnects on `4401`. (audit F-05)
 - **Logout after the access token expired left the session alive.** The
   refresh token could still be used afterwards. `POST /api/auth/logout` now
   also accepts an optional `{ "refreshToken" }` body (additive; no body still

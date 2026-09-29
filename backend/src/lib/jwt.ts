@@ -13,7 +13,7 @@ export function signAccessToken(userId: string): string {
 }
 
 export type VerifyAccessTokenResult =
-  | { ok: true; userId: string }
+  | { ok: true; userId: string; expiresAtMs: number }
   | { ok: false; reason: 'expired' | 'invalid' };
 
 export function verifyAccessToken(token: string): VerifyAccessTokenResult {
@@ -22,7 +22,11 @@ export function verifyAccessToken(token: string): VerifyAccessTokenResult {
     if (typeof decoded.sub !== 'string' || decoded.sub.length === 0) {
       return { ok: false, reason: 'invalid' };
     }
-    return { ok: true, userId: decoded.sub };
+    const exp = (decoded as AccessTokenPayload & { exp?: number }).exp;
+    if (typeof exp !== 'number') {
+      return { ok: false, reason: 'invalid' };
+    }
+    return { ok: true, userId: decoded.sub, expiresAtMs: exp * 1000 };
   } catch (err) {
     if (err instanceof jwt.TokenExpiredError) {
       return { ok: false, reason: 'expired' };
