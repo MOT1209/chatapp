@@ -274,6 +274,27 @@ describe('POST /api/auth/forgot-password', () => {
   });
 });
 
+describe('POST /api/auth/forgot-password — token supersession', () => {
+  it('invalidates an earlier unused reset token when a new one is requested', async () => {
+    await registerUser(app, { email: 'twice@example.com' });
+    const first = await authService.requestPasswordReset('twice@example.com');
+    const second = await authService.requestPasswordReset('twice@example.com');
+    if (!first || !second) {
+      throw new Error('expected reset tokens outside production');
+    }
+
+    const stale = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: first.resetToken, newPassword: 'brand-new-password' });
+    expect(stale.status).toBe(400);
+
+    const fresh = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: second.resetToken, newPassword: 'brand-new-password' });
+    expect(fresh.status).toBe(204);
+  });
+});
+
 describe('canExposeRawResetToken', () => {
   it('is true for development and test, false for production', () => {
     expect(authService.canExposeRawResetToken('development')).toBe(true);

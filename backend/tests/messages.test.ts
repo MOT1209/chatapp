@@ -68,7 +68,7 @@ describe('POST /api/conversations/:id/messages', () => {
     const conversationId = await createConversation(a, b);
 
     const results = await Promise.all(
-      Array.from({ length: 5 }, () =>
+      Array.from({ length: 25 }, () =>
         request(app)
           .post(`/api/conversations/${conversationId}/messages`)
           .set('Authorization', `Bearer ${a.accessToken}`)

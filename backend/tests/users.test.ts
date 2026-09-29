@@ -25,6 +25,19 @@ describe('GET /api/users/me', () => {
 });
 
 describe('GET /api/users/search', () => {
+  it('treats % and _ in the query literally, not as wildcards', async () => {
+    const me = await registerUser(app, { username: 'wildme' });
+    await registerUser(app, { username: 'abcdef' });
+    await registerUser(app, { username: 'a_c.real' });
+
+    const search = (q: string) =>
+      request(app).get('/api/users/search').query({ q }).set('Authorization', `Bearer ${me.accessToken}`);
+
+    expect((await search('a%f')).body.users).toHaveLength(0);
+    const underscore = (await search('a_c')).body.users as { username: string }[];
+    expect(underscore.map((u) => u.username)).toEqual(['a_c.real']);
+  });
+
   it('finds users by username or display name, excludes self and email', async () => {
     const me = await registerUser(app, { username: 'searcher', email: 'searcher@example.com' });
     await registerUser(app, { username: 'sara', displayName: 'Sara H.', email: 'sara@example.com' });

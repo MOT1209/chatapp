@@ -13,8 +13,10 @@ export function createApp(): Express {
   app.use(helmet());
   app.use(
     cors({
-      origin: env.CORS_ORIGIN.split(',').map((s) => s.trim()),
-      credentials: true,
+      origin: env.CORS_ORIGIN.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+      // Auth is a Bearer header, not a cookie, so credentialed CORS isn't needed.
     }),
   );
   app.use(express.json({ limit: '1mb' }));

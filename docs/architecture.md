@@ -53,3 +53,9 @@ chatapp/
   backend process. Scaling to multiple instances needs a shared layer (e.g.
   Redis pub/sub) behind the same interface.
 - Deployment infrastructure, load testing, production secrets management.
+
+## Known trade-offs (Alpha)
+
+- **Registration reveals duplicates.** `POST /api/auth/register` answers `409` with per-field messages so the form can show them. This does let a caller probe which usernames/emails exist; login and forgot-password deliberately do not.
+- **Access tokens outlive logout.** Logout and password reset revoke refresh sessions, but an already-issued access token stays valid until it expires (`JWT_ACCESS_TTL`, 15 minutes by default). Likewise, a WebSocket connection authenticated with it is not re-checked for expiry.
+- **Rate limits are in-memory and per IP.** They reset on restart, are not shared between instances, and there is no per-account login limit. `trust proxy` is set to `1`, which assumes exactly one reverse proxy in front of the API.

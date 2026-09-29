@@ -19,10 +19,43 @@ const AUTH_GRACE_MS = 5_000;
 // below turns into a clean close instead of a crash.
 const MAX_FRAME_BYTES = 16 * 1024;
 
+// typing/read frames each cost 1-3 DB queries. The contract limits a client to one
+// typing frame per 2s, so this ceiling is far above legitimate use; it only stops
+// a hostile client from turning the socket into a query amplifier.
+const DEFAULT_FRAME_LIMIT = 20;
+const DEFAULT_FRAME_WINDOW_MS = 10_000;
+
+// Protocol-level ping/pong (separate from the contract's app-level `ping` frame).
+// A socket that misses one full cycle is dead: terminate it so presence is corrected.
+const DEFAULT_HEARTBEAT_MS = 30_000;
+
 type Session = { userId: string };
 
-export function createWsServer(httpServer: HttpServer): WebSocketServer {
+export type WsServerOptions = {
+  frameLimit?: number;
+  frameWindowMs?: number;
+  heartbeatMs?: number;
+};
+
+export function createWsServer(httpServer: HttpServer, options: WsServerOptions = {}): WebSocketServer {
+  const frameLimit = options.frameLimit ?? DEFAULT_FRAME_LIMIT;
+  const frameWindowMs = options.frameWindowMs ?? DEFAULT_FRAME_WINDOW_MS;
+  const heartbeatMs = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
   const wss = new WebSocketServer({ server: httpServer, path: '/ws', maxPayload: MAX_FRAME_BYTES });
+
+  const alive = new WeakSet<WebSocket>();
+  const heartbeat = setInterval(() => {
+    for (const client of wss.clients) {
+      if (!alive.has(client)) {
+        client.terminate();
+        continue;
+      }
+      alive.delete(client);
+      client.ping();
+    }
+  }, heartbeatMs);
+  heartbeat.unref();
+  wss.on('close', () => clearInterval(heartbeat));
 
   // `WebSocketServer` itself is an EventEmitter. An unhandled 'error' here
   // (e.g. a bad upgrade request) would otherwise crash the whole process,
@@ -33,6 +66,21 @@ export function createWsServer(httpServer: HttpServer): WebSocketServer {
 
   wss.on('connection', (socket: WebSocket) => {
     let session: Session | null = null;
+    let windowStart = Date.now();
+    let framesInWindow = 0;
+    alive.add(socket);
+    socket.on('pong', () => alive.add(socket));
+
+    /** Sliding-ish window: true if this heavy frame is over the per-socket budget. */
+    function overBudget(): boolean {
+      const now = Date.now();
+      if (now - windowStart >= frameWindowMs) {
+        windowStart = now;
+        framesInWindow = 0;
+      }
+      framesInWindow += 1;
+      return framesInWindow > frameLimit;
+    }
     let authTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
       if (!session) {
         socket.close(4401, 'auth timeout');
@@ -128,9 +176,15 @@ export function createWsServer(httpServer: HttpServer): WebSocketServer {
           send(socket, { type: 'pong', payload: {} });
           return;
         case 'typing':
+          if (overBudget()) {
+            return;
+          }
           await handleTyping(session.userId, frame.payload);
           return;
         case 'read':
+          if (overBudget()) {
+            return;
+          }
           await handleRead(session.userId, frame.payload);
           return;
       }

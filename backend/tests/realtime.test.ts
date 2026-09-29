@@ -385,3 +385,68 @@ describe('WebSocket authorization', () => {
     socketOutsider.close();
   });
 });
+
+describe('WebSocket abuse protection', () => {
+  let limitedServer: Server;
+  let limitedUrl: string;
+
+  beforeAll(async () => {
+    limitedServer = app.listen(0);
+    createWsServer(limitedServer, { frameLimit: 3, frameWindowMs: 60_000, heartbeatMs: 100 });
+    await new Promise<void>((resolve) => limitedServer.once('listening', resolve));
+    limitedUrl = `ws://127.0.0.1:${(limitedServer.address() as AddressInfo).port}/ws`;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => limitedServer.close(() => resolve()));
+  });
+
+  async function authedOn(url: string, token: string, autoPong = true): Promise<WebSocket> {
+    const socket = new WebSocket(url, { autoPong });
+    await opened(socket);
+    const ready = waitForFrame(socket, (f) => f.type === 'ready');
+    socket.send(JSON.stringify({ type: 'auth', payload: { token } }));
+    await ready;
+    return socket;
+  }
+
+  it('drops typing frames over the per-socket budget without closing the socket', async () => {
+    const a = await registerUser(app, { username: 'floodA' });
+    const b = await registerUser(app, { username: 'floodB' });
+    const conv = await request(app)
+      .post('/api/conversations')
+      .set('Authorization', `Bearer ${a.accessToken}`)
+      .send({ participantId: b.user.id });
+    const conversationId = conv.body.id as string;
+
+    const socketA = await authedOn(limitedUrl, a.accessToken);
+    const socketB = await authedOn(limitedUrl, b.accessToken);
+
+    let received = 0;
+    socketB.on('message', (raw: RawData) => {
+      if ((JSON.parse(raw.toString()) as Frame).type === 'typing') {
+        received += 1;
+      }
+    });
+    for (let i = 0; i < 10; i += 1) {
+      socketA.send(JSON.stringify({ type: 'typing', payload: { conversationId, isTyping: true } }));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    expect(received).toBe(3);
+    expect(socketA.readyState).toBe(WebSocket.OPEN);
+
+    socketA.close();
+    socketB.close();
+  });
+
+  it('terminates a socket that stops answering protocol pings', async () => {
+    const a = await registerUser(app, { username: 'deadsock' });
+    const socket = await authedOn(limitedUrl, a.accessToken, false);
+    const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+    await Promise.race([
+      closed,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('socket was not terminated')), 2000)),
+    ]);
+  });
+});

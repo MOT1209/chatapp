@@ -186,13 +186,20 @@ export async function requestPasswordReset(email: string): Promise<{ resetToken:
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
 
-  await prisma.passwordResetToken.create({
-    data: {
-      userId: user.id,
-      tokenHash,
-      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
-    },
-  });
+  // Only the newest link should work: retire any earlier unused ones.
+  await prisma.$transaction([
+    prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    }),
+    prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+      },
+    }),
+  ]);
 
   if (!canExposeRawResetToken(env.NODE_ENV)) {
     return; // Production: the token exists only as a hash from this point on.

@@ -48,7 +48,11 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Install
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
 
       - name: Prisma generate
         run: npm run prisma:generate

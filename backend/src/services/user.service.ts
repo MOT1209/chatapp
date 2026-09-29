@@ -20,7 +20,13 @@ export async function getById(id: string): Promise<UserDTO> {
   return serializeUser(user);
 }
 
-export async function search(currentUserId: string, query: string, limit: number): Promise<UserDTO[]> {
+/** Prisma passes `contains` values into LIKE unescaped, so `%` and `_` would act as wildcards. */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+export async function search(currentUserId: string, rawQuery: string, limit: number): Promise<UserDTO[]> {
+  const query = escapeLike(rawQuery);
   const users = await prisma.user.findMany({
     where: {
       id: { not: currentUserId },
