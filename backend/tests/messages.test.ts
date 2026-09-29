@@ -62,6 +62,24 @@ describe('POST /api/conversations/:id/messages', () => {
     expect(retry.body.id).toBe(first.body.id);
   });
 
+  it('returns one message, not a 500, when the same clientId is sent concurrently', async () => {
+    const a = await registerUser(app, { username: 'raceA' });
+    const b = await registerUser(app, { username: 'raceB' });
+    const conversationId = await createConversation(a, b);
+
+    const results = await Promise.all(
+      Array.from({ length: 25 }, () =>
+        request(app)
+          .post(`/api/conversations/${conversationId}/messages`)
+          .set('Authorization', `Bearer ${a.accessToken}`)
+          .send({ clientId: 'race-1', body: 'Hello' }),
+      ),
+    );
+
+    expect(results.every((r) => r.status === 200 || r.status === 201)).toBe(true);
+    expect(new Set(results.map((r) => r.body.id as string)).size).toBe(1);
+  });
+
   it('rejects an empty body as VALIDATION_ERROR', async () => {
     const a = await registerUser(app, { username: 'emptyA' });
     const b = await registerUser(app, { username: 'emptyB' });

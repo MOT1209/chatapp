@@ -18,7 +18,7 @@ export type VerifyAccessTokenResult =
 
 export function verifyAccessToken(token: string): VerifyAccessTokenResult {
   try {
-    const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET) as AccessTokenPayload;
+    const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] }) as AccessTokenPayload;
     if (typeof decoded.sub !== 'string' || decoded.sub.length === 0) {
       return { ok: false, reason: 'invalid' };
     }

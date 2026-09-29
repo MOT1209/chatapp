@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { hashPassword, verifyPassword } from '../lib/password.js';
+import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from '../lib/password.js';
 import {
   generateRefreshToken,
   hashRefreshToken,
@@ -88,10 +88,12 @@ export async function login(
   });
   // Same error for "no such user" and "wrong password" — see docs/api-contract.md §3.1,
   // this endpoint must not be usable to enumerate accounts.
+  // Always run one bcrypt comparison so response time does not reveal whether
+  // the account exists.
+  const valid = await verifyPassword(input.password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
   if (!user) {
     throw invalidCredentials();
   }
-  const valid = await verifyPassword(input.password, user.passwordHash);
   if (!valid) {
     throw invalidCredentials();
   }
@@ -104,15 +106,25 @@ export async function refresh(refreshToken: string, meta: SessionMeta): Promise<
   const refreshHash = hashRefreshToken(refreshToken);
   const session = await prisma.session.findUnique({ where: { refreshHash } });
 
-  if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
+  if (!session || session.expiresAt.getTime() < Date.now()) {
     throw unauthenticated('Refresh token is invalid or expired.');
   }
 
-  // Rotate: the old token is dead the moment a new one is issued from it.
-  await prisma.session.update({
-    where: { id: session.id },
+  if (session.revokedAt) {
+    // A rotated-out token showing up again means it was copied (or replayed by a
+    // racing client). Kill every session so a thief's freshly issued token dies too.
+    await logoutAllSessions(session.userId);
+    throw unauthenticated('Refresh token is invalid or expired.');
+  }
+
+  // Rotate atomically: only one concurrent caller can flip revokedAt from null.
+  const rotated = await prisma.session.updateMany({
+    where: { id: session.id, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+  if (rotated.count !== 1) {
+    throw unauthenticated('Refresh token is invalid or expired.');
+  }
 
   return issueSession(session.userId, meta);
 }
@@ -174,13 +186,20 @@ export async function requestPasswordReset(email: string): Promise<{ resetToken:
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
 
-  await prisma.passwordResetToken.create({
-    data: {
-      userId: user.id,
-      tokenHash,
-      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
-    },
-  });
+  // Only the newest link should work: retire any earlier unused ones.
+  await prisma.$transaction([
+    prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    }),
+    prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+      },
+    }),
+  ]);
 
   if (!canExposeRawResetToken(env.NODE_ENV)) {
     return; // Production: the token exists only as a hash from this point on.

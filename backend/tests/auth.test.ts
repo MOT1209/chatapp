@@ -172,6 +172,28 @@ describe('POST /api/auth/refresh', () => {
     expect(res.status).toBe(401);
   });
 
+  it('lets only one of several concurrent refreshes with the same token succeed', async () => {
+    const { refreshToken } = await registerUser(app, { username: 'refreshrace' });
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => request(app).post('/api/auth/refresh').send({ refreshToken })),
+    );
+    expect(results.filter((r) => r.status === 200)).toHaveLength(1);
+  });
+
+  it('revokes every session when a rotated-out refresh token is replayed', async () => {
+    const { refreshToken } = await registerUser(app, { username: 'replayed' });
+    const rotated = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    expect(rotated.status).toBe(200);
+
+    // Replaying the old token is treated as theft: the legitimately rotated token dies too.
+    const replay = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    expect(replay.status).toBe(401);
+    const afterReplay = await request(app)
+      .post('/api/auth/refresh')
+      .send({ refreshToken: rotated.body.refreshToken as string });
+    expect(afterReplay.status).toBe(401);
+  });
+
   it('rejects a refresh token whose session has expired', async () => {
     const { refreshToken } = await registerUser(app, { username: 'expiredsession' });
     // The session exists and is unrevoked — only its expiry is in the past.
@@ -249,6 +271,27 @@ describe('POST /api/auth/forgot-password', () => {
     const res = await request(app).post('/api/auth/forgot-password').send({ email: 'noleak@example.com' });
     expect(res.body).toEqual({});
     expect(JSON.stringify(res.body)).not.toMatch(/token/i);
+  });
+});
+
+describe('POST /api/auth/forgot-password — token supersession', () => {
+  it('invalidates an earlier unused reset token when a new one is requested', async () => {
+    await registerUser(app, { email: 'twice@example.com' });
+    const first = await authService.requestPasswordReset('twice@example.com');
+    const second = await authService.requestPasswordReset('twice@example.com');
+    if (!first || !second) {
+      throw new Error('expected reset tokens outside production');
+    }
+
+    const stale = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: first.resetToken, newPassword: 'brand-new-password' });
+    expect(stale.status).toBe(400);
+
+    const fresh = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: second.resetToken, newPassword: 'brand-new-password' });
+    expect(fresh.status).toBe(204);
   });
 });
 
