@@ -5,5 +5,8 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     globals: false,
+    setupFiles: ['tests/setup.ts'],
+    // A workspace path containing spaces breaks the default forks pool on Windows.
+    pool: 'threads',
   },
 });

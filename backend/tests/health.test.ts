@@ -1,21 +1,19 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import request from 'supertest';
-import type { Express } from 'express';
-
-// Set required env before importing app.
-beforeAll(() => {
-  process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://test:test@localhost:5432/test';
-  process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET ?? 'test-access';
-  process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? 'test-refresh';
-  process.env.NODE_ENV = 'test';
-});
+import { makeApp } from './helpers/harness.js';
 
 describe('GET /health', () => {
   it('returns 200 with service identity', async () => {
-    const { createApp } = await import('../src/app.js');
-    const app: Express = createApp();
+    const { app } = makeApp();
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'ok', service: 'chatapp-api' });
+  });
+
+  it('returns the contract error envelope for an unknown route', async () => {
+    const { app } = makeApp();
+    const res = await request(app).get('/api/does-not-exist');
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: { code: 'NOT_FOUND', message: expect.any(String) } });
   });
 });
