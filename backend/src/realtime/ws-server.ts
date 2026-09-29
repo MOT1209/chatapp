@@ -6,16 +6,30 @@ import { logger } from '../lib/logger.js';
 import { wsHub } from './ws-hub.js';
 import { markRead } from '../services/message.service.js';
 import { assertMember, getOtherMemberIds } from '../services/conversation.service.js';
-import type { ClientFrame, ServerFrame } from '../types/realtime.js';
+import { clientFrameSchema, type ValidatedClientFrame } from '../validators/realtime.validators.js';
+import type { ServerFrame } from '../types/realtime.js';
 
 // docs/api-contract.md §4.1: the first frame must be `auth`, or the server closes
 // the socket with 4401 after this many milliseconds.
 const AUTH_GRACE_MS = 5_000;
 
+// Every legitimate frame (a token, a cuid, a boolean) fits comfortably under 1KB.
+// This is a DoS guard, not a business rule: `ws` aborts the connection with a
+// RangeError once a single message exceeds this, which the 'error' listener
+// below turns into a clean close instead of a crash.
+const MAX_FRAME_BYTES = 16 * 1024;
+
 type Session = { userId: string };
 
 export function createWsServer(httpServer: HttpServer): WebSocketServer {
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws', maxPayload: MAX_FRAME_BYTES });
+
+  // `WebSocketServer` itself is an EventEmitter. An unhandled 'error' here
+  // (e.g. a bad upgrade request) would otherwise crash the whole process,
+  // taking down every other connection with it.
+  wss.on('error', (err: Error) => {
+    logger.error('ws server error', { err: err.message });
+  });
 
   wss.on('connection', (socket: WebSocket) => {
     let session: Session | null = null;
@@ -24,6 +38,15 @@ export function createWsServer(httpServer: HttpServer): WebSocketServer {
         socket.close(4401, 'auth timeout');
       }
     }, AUTH_GRACE_MS);
+
+    // Same reasoning as wss.on('error') above, at the per-socket level: a
+    // protocol violation, an oversized frame (see maxPayload), or a raw
+    // network error all surface as an 'error' event on the socket. Node's
+    // EventEmitter throws if nothing is listening for it — this is what
+    // stands between one misbehaving client and every other user's connection.
+    socket.on('error', (err: Error) => {
+      logger.warn('ws socket error', { err: err.message });
+    });
 
     socket.on('message', (raw: RawData) => {
       handleMessage(raw).catch((err: unknown) => {
@@ -47,6 +70,14 @@ export function createWsServer(httpServer: HttpServer): WebSocketServer {
     async function handleMessage(raw: RawData): Promise<void> {
       const frame = parseFrame(raw);
       if (!frame) {
+        // Malformed JSON, an unknown frame type, a missing/mistyped field —
+        // all collapse to the same outcome: tell the client and drop the
+        // frame. The socket stays open; one bad frame is not a reason to
+        // punish the rest of the session.
+        send(socket, {
+          type: 'error',
+          payload: { code: 'VALIDATION_ERROR', message: 'Malformed or invalid frame.' },
+        });
         return;
       }
 
@@ -178,17 +209,20 @@ async function getContactIds(userId: string): Promise<string[]> {
   return others.map((o) => o.userId);
 }
 
-function parseFrame(raw: RawData): ClientFrame | null {
+function parseFrame(raw: RawData): ValidatedClientFrame | null {
   const text = typeof raw === 'string' ? raw : raw.toString('utf8');
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(text) as unknown;
-    if (parsed !== null && typeof parsed === 'object' && typeof (parsed as { type?: unknown }).type === 'string') {
-      return parsed as ClientFrame;
-    }
-    return null;
+    parsed = JSON.parse(text);
   } catch {
-    return null; // A malformed frame is dropped; the socket stays open.
+    return null; // Malformed JSON.
   }
+  // The JSON parsed fine, but that says nothing about its shape — a client
+  // (hostile or buggy) can send any JSON value at all. clientFrameSchema is
+  // the actual boundary: unknown type, missing field, or wrong field type
+  // all fail here rather than reaching handler code that assumes they don't.
+  const result = clientFrameSchema.safeParse(parsed);
+  return result.success ? result.data : null;
 }
 
 function send(socket: WebSocket, frame: ServerFrame): void {
