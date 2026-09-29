@@ -201,7 +201,18 @@ Errors: `UNAUTHENTICATED` (401) when the refresh token is missing, malformed, ex
 
 #### `POST /api/auth/logout` → 204
 
-No body. Revokes the refresh token. The frontend clears local storage and returns to the login screen. A failure here must not block logout on the client.
+**Logs out every session for the account — every device, not just the caller's.**
+No body is sent, so the backend has no single refresh token to target even if
+it wanted one; it identifies the caller from whatever access token is still
+attached (best-effort — a missing or already-expired one is not an error, see
+below) and revokes all of that user's active sessions at once. There is no
+per-device "log out this device only" in v1 — logging out on a phone also
+signs out the desktop client, the web tab, everything.
+
+The frontend clears local storage and returns to the login screen regardless
+of what the server did. A failure here must not block logout on the client,
+and neither must a missing/expired access token — the endpoint always
+responds 204.
 
 #### `POST /api/auth/forgot-password` → 202
 
@@ -431,6 +442,7 @@ Errors:
 | URL | `ws://localhost:4000/ws`, from `WS_URL` (`--dart-define`) |
 | Protocol | raw WebSocket, no library. Frame format is JSON text |
 | Auth | **not** a query parameter. The first frame the client sends must be `auth` (§4.3). The backend closes the socket with code `4401` if it does not arrive within 5 seconds |
+| Authorization | authentication alone is not authorization. Every `typing` and `read` frame is checked against real conversation membership, the same check the REST endpoints use. A frame for a conversation the sender does not belong to is dropped silently — no error frame, no broadcast to anyone, connection stays open. Silent rather than an explicit `FORBIDDEN` on purpose: it doesn't confirm or deny that the conversation exists to someone outside it |
 | Heartbeat | client sends `ping` every 25s. The server replies `pong`. The frontend tolerates up to 2 missed pongs before forcing a reconnect |
 | Reconnect | client-side only, exponential backoff 1s → 2s → 4s → 8s → 15s cap, with jitter. The frontend never reconnects automatically while the tab is hidden, and retries once immediately on `online` |
 
@@ -443,6 +455,16 @@ Every frame in both directions is:
 ```
 
 No frame may be sent without a `type`.
+
+**Every incoming frame is validated at runtime against the exact shapes in
+§4.3** (backend: Zod; the TypeScript/Dart types describe the intent, not the
+enforcement). A frame that isn't valid JSON, has an unrecognized `type`, is
+missing a required payload field, or has a field of the wrong type is
+rejected: the server replies `{ "type": "error", "payload": { "code":
+"VALIDATION_ERROR", "message": "..." } }` and drops that one frame — the
+connection stays open. A frame larger than 16KB is rejected at the transport
+level (the connection closes; legitimate frames are a few hundred bytes at
+most, so this is a size-limit backstop, not a business rule).
 
 ### 4.3 Client → server
 
@@ -528,4 +550,9 @@ These are not blocking the frontend. Confirm when convenient.
 3. **Message editing** — still not in v1. **Deletion** was added — see §3.4.1 — because Alpha v0.0.1's backend task required it; the frontend doesn't need to call it to keep working, but should adopt `DELETE .../messages/:messageId` and the `deletedAt` field when convenient.
 4. **Registration open or invite-only** — v1 assumes open registration. If it must be invite-only, say so and the frontend will hide the register link.
 5. **Rate limit values (concrete numbers)** — implemented as: register/login/forgot-password/reset-password 20 requests / 15 min per IP; user search 30 requests / min per authenticated user; message send 60 requests / min per authenticated user. These are Alpha judgment calls, not requirements — tell the backend if the UI needs them adjusted.
-6. **Forgot/reset password email delivery** — Alpha has no SMTP/email provider configured. `forgot-password` generates and stores a reset token but logs it to the server console instead of emailing it (`[dev-only] Password reset token for <email>: <token>`). The endpoints behave per spec; only the email transport is stubbed. Wire up a real provider before this leaves Alpha.
+6. **Forgot/reset password email delivery** — Alpha has no SMTP/email provider configured. `forgot-password` generates and stores a reset token (its hash only — see §2.1's session/token storage note) but has no way to email it, so the raw token's only path out of the server is environment-gated by `NODE_ENV`:
+   - **development**: logged to the server console (`[dev-only] Password reset token for <email>: <token>`) so the flow is testable end to end locally without an email provider.
+   - **test**: never logged; test code reads it from the service function's return value instead (`requestPasswordReset` returns `{ resetToken }` outside production).
+   - **production**: never logged, never returned, never included in the HTTP response body — the token exists only as a hash in the database from the moment it's created. There is currently no way to complete a production password reset without wiring up a real email provider first, which is deliberate: shipping a working reset flow with nowhere secure to send the token would be worse than not shipping one.
+
+   The endpoints behave per spec regardless of environment; only the token's *delivery channel* differs. Wire up a real provider before this leaves Alpha.

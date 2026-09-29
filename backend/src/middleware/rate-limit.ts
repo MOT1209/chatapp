@@ -52,3 +52,25 @@ export const messageRateLimit = limiter({
   max: 60,
   keyGenerator: (req) => req.userId ?? byIp(req),
 });
+
+/**
+ * Test-only: builds a limiter that ignores the test-mode `disabled` switch
+ * above, using the same handler and IP key generator as the real limiters.
+ * Exists so a test can prove the actual 429/Retry-After/RATE_LIMITED
+ * behaviour works, since every exported limiter above is a no-op for the
+ * whole suite's NODE_ENV=test run. Not used by any route.
+ */
+export function createRateLimiterForTests(options: {
+  windowMs: number;
+  max: number;
+  keyGenerator?: (req: Request) => string;
+}) {
+  return rateLimit({
+    windowMs: options.windowMs,
+    max: options.max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: rateLimitHandler,
+    keyGenerator: options.keyGenerator ?? byIp,
+  });
+}

@@ -1,9 +1,10 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { buildTestApp, registerUser } from './helpers/test-app.js';
 import { resetDb } from './helpers/db.js';
 import { prisma } from '../src/lib/prisma.js';
+import * as authService from '../src/services/auth.service.js';
 
 let app: Express;
 
@@ -170,6 +171,16 @@ describe('POST /api/auth/refresh', () => {
     const res = await request(app).post('/api/auth/refresh').send({ refreshToken: 'nope' });
     expect(res.status).toBe(401);
   });
+
+  it('rejects a refresh token whose session has expired', async () => {
+    const { refreshToken } = await registerUser(app, { username: 'expiredsession' });
+    // The session exists and is unrevoked — only its expiry is in the past.
+    await prisma.session.updateMany({ data: { expiresAt: new Date(Date.now() - 1_000) } });
+
+    const res = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHENTICATED');
+  });
 });
 
 describe('POST /api/auth/logout', () => {
@@ -187,6 +198,27 @@ describe('POST /api/auth/logout', () => {
     const res = await request(app).post('/api/auth/logout');
     expect(res.status).toBe(204);
   });
+
+  it('revokes every session, not just the one whose access token was used', async () => {
+    const first = await registerUser(app, { username: 'multidevice', password: 'correct-horse-battery' });
+    // A second login is a second "device": its own session, its own refresh token.
+    const second = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'multidevice', password: 'correct-horse-battery' });
+    expect(second.status).toBe(200);
+
+    const logoutRes = await request(app)
+      .post('/api/auth/logout')
+      .set('Authorization', `Bearer ${first.accessToken}`);
+    expect(logoutRes.status).toBe(204);
+
+    const refreshFirst = await request(app).post('/api/auth/refresh').send({ refreshToken: first.refreshToken });
+    const refreshSecond = await request(app)
+      .post('/api/auth/refresh')
+      .send({ refreshToken: second.body.refreshToken as string });
+    expect(refreshFirst.status).toBe(401);
+    expect(refreshSecond.status).toBe(401);
+  });
 });
 
 describe('POST /api/auth/forgot-password', () => {
@@ -199,6 +231,33 @@ describe('POST /api/auth/forgot-password', () => {
     const real = await request(app).post('/api/auth/forgot-password').send({ email: 'real@example.com' });
     expect(real.status).toBe(202);
   });
+
+  it('never logs the raw reset token in the running environment (test, here)', async () => {
+    await registerUser(app, { email: 'quiet@example.com' });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      const res = await request(app).post('/api/auth/forgot-password').send({ email: 'quiet@example.com' });
+      expect(res.status).toBe(202);
+      expect(logSpy).not.toHaveBeenCalled();
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('the HTTP response never contains a token field, regardless of environment', async () => {
+    await registerUser(app, { email: 'noleak@example.com' });
+    const res = await request(app).post('/api/auth/forgot-password').send({ email: 'noleak@example.com' });
+    expect(res.body).toEqual({});
+    expect(JSON.stringify(res.body)).not.toMatch(/token/i);
+  });
+});
+
+describe('canExposeRawResetToken', () => {
+  it('is true for development and test, false for production', () => {
+    expect(authService.canExposeRawResetToken('development')).toBe(true);
+    expect(authService.canExposeRawResetToken('test')).toBe(true);
+    expect(authService.canExposeRawResetToken('production')).toBe(false);
+  });
 });
 
 describe('POST /api/auth/reset-password', () => {
@@ -208,5 +267,64 @@ describe('POST /api/auth/reset-password', () => {
       .send({ token: 'not-a-real-token', newPassword: 'new-correct-horse' });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('resets the password with a valid token and invalidates every existing session', async () => {
+    const registered = await registerUser(app, {
+      username: 'resetme',
+      email: 'resetme@example.com',
+      password: 'correct-horse-battery',
+    });
+
+    const result = await authService.requestPasswordReset('resetme@example.com');
+    expect(result?.resetToken).toBeTruthy();
+
+    const resetRes = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: result!.resetToken, newPassword: 'new-correct-horse' });
+    expect(resetRes.status).toBe(204);
+
+    // The session from before the reset is dead.
+    const refreshAttempt = await request(app)
+      .post('/api/auth/refresh')
+      .send({ refreshToken: registered.refreshToken });
+    expect(refreshAttempt.status).toBe(401);
+
+    // The new password works; the old one no longer does.
+    const newLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'resetme', password: 'new-correct-horse' });
+    expect(newLogin.status).toBe(200);
+
+    const oldLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'resetme', password: 'correct-horse-battery' });
+    expect(oldLogin.status).toBe(401);
+  });
+
+  it('rejects reusing an already-used reset token', async () => {
+    await registerUser(app, { username: 'reuse', email: 'reuse@example.com' });
+    const result = await authService.requestPasswordReset('reuse@example.com');
+
+    const first = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: result!.resetToken, newPassword: 'brand-new-password' });
+    expect(first.status).toBe(204);
+
+    const second = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: result!.resetToken, newPassword: 'another-password' });
+    expect(second.status).toBe(400);
+  });
+
+  it('rejects an expired reset token', async () => {
+    await registerUser(app, { username: 'expiredreset', email: 'expiredreset@example.com' });
+    const result = await authService.requestPasswordReset('expiredreset@example.com');
+    await prisma.passwordResetToken.updateMany({ data: { expiresAt: new Date(Date.now() - 1_000) } });
+
+    const res = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: result!.resetToken, newPassword: 'whatever-new-123' });
+    expect(res.status).toBe(400);
   });
 });

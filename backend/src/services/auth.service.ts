@@ -10,6 +10,7 @@ import {
 import { conflict, invalidCredentials, unauthenticated, validationError } from '../lib/errors.js';
 import { serializeUser, type UserDTO } from '../lib/serializers.js';
 import { isUniqueConstraintError } from '../lib/prisma-errors.js';
+import { env } from '../config/env.js';
 import crypto from 'node:crypto';
 
 export type AuthTokens = { accessToken: string; refreshToken: string };
@@ -142,7 +143,27 @@ export function tryIdentifyFromAccessToken(authorizationHeader: string | undefin
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-export async function requestPasswordReset(email: string): Promise<void> {
+/**
+ * True whenever the raw reset token may be surfaced outside the database at
+ * all — logged, or handed back to a caller in this process. Production is
+ * the only environment where the answer is no. This is deliberately a pure
+ * function of NODE_ENV so it can be unit-tested for all three values without
+ * needing a live server in a particular env — see tests/auth.test.ts.
+ */
+export function canExposeRawResetToken(nodeEnv: string): boolean {
+  return nodeEnv !== 'production';
+}
+
+/**
+ * Requests a password reset. Per docs/api-contract.md §3.1 this always
+ * "succeeds" from the caller's perspective (§6.6) — the HTTP layer never
+ * sees a token either way. The return value exists only for local dev
+ * curl-testing and for tests, which need the raw token to drive
+ * resetPassword() without an email provider (Alpha has none — see
+ * backend/README.md). It is never computed, logged, or returned in
+ * production.
+ */
+export async function requestPasswordReset(email: string): Promise<{ resetToken: string } | void> {
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   // Always succeeds from the caller's perspective — see docs/api-contract.md §3.1,
   // this must not reveal whether the address is registered.
@@ -161,9 +182,18 @@ export async function requestPasswordReset(email: string): Promise<void> {
     },
   });
 
-  // Alpha has no email/SMTP integration (out of scope — see backend/README.md).
-  // Logging the link keeps the flow testable end-to-end locally without one.
-  console.log(`[dev-only] Password reset token for ${user.email}: ${rawToken}`);
+  if (!canExposeRawResetToken(env.NODE_ENV)) {
+    return; // Production: the token exists only as a hash from this point on.
+  }
+
+  if (env.NODE_ENV === 'development') {
+    // Keeps the flow testable end-to-end locally without an email provider.
+    // Never runs in production, and not in test — tests read the token from
+    // the return value below instead of scraping stdout.
+    console.log(`[dev-only] Password reset token for ${user.email}: ${rawToken}`);
+  }
+
+  return { resetToken: rawToken };
 }
 
 export async function resetPassword(rawToken: string, newPassword: string): Promise<void> {
