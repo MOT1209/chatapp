@@ -131,8 +131,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
               ...old,
               pages: old.pages.map((page) => ({
                 ...page,
+                // The peer (`userId`) read up to `messageId`; it is *our* messages
+                // (sent by the current user) whose ticks should turn blue, not theirs.
                 messages: page.messages.map((message) =>
-                  message.sender.id === userId && message.id === messageId
+                  message.sender.id === currentUserId && message.id === messageId
                     ? { ...message, status: "read" as const, readAt }
                     : message,
                 ),

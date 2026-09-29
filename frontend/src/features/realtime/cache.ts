@@ -20,7 +20,15 @@ import type { Conversation, ConversationListResponse, Message, MessagesPage } fr
 
 export type MessagesCache = InfiniteData<MessagesPage, string | null>;
 
-/** Flattens every page into one list, keeping only the first copy of each id. */
+/**
+ * Flattens every page into one list, keeping only the first copy of each id and
+ * ordering the result oldest → newest.
+ *
+ * The pages arrive newest-page-first (the first fetch is the latest history, and the
+ * "load older" button appends older pages after it), so a plain concatenation would put
+ * older messages below newer ones. Sorting by creation time — a stable sort, so equal
+ * timestamps keep their insertion order — yields the correct chronological thread.
+ */
 export function flattenMessages(data: MessagesCache | undefined): Message[] {
   if (!data) {
     return [];
@@ -35,7 +43,7 @@ export function flattenMessages(data: MessagesCache | undefined): Message[] {
       }
     }
   }
-  return all;
+  return all.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
 /** Inserts or replaces a message, keeping the list ordered by creation time. */
