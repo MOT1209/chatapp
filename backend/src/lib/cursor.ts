@@ -19,7 +19,10 @@ export function decodeCursor(raw: string): MessageCursor | null {
       parsed !== null &&
       typeof parsed === 'object' &&
       typeof (parsed as MessageCursor).id === 'string' &&
-      typeof (parsed as MessageCursor).createdAt === 'string'
+      typeof (parsed as MessageCursor).createdAt === 'string' &&
+      // A valid-looking string can still be an unparseable date, which Prisma rejects
+      // with an internal error (HTTP 500) instead of the caller's mistake (HTTP 400).
+      !Number.isNaN(new Date((parsed as MessageCursor).createdAt).getTime())
     ) {
       return parsed as MessageCursor;
     }

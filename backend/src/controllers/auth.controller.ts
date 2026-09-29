@@ -29,10 +29,10 @@ export const refreshHandler = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const logoutHandler = asyncHandler(async (req: Request, res: Response) => {
-  const userId = authService.tryIdentifyFromAccessToken(req.headers.authorization);
-  if (userId) {
-    await authService.logoutAllSessions(userId);
-  }
+  // The body is optional and deliberately not validated: a malformed one must not
+  // stop the user from logging out. The service ignores anything but a string.
+  const refreshToken = (req.body as { refreshToken?: unknown } | undefined)?.refreshToken;
+  await authService.logout(req.headers.authorization, refreshToken);
   res.status(204).end();
 });
 

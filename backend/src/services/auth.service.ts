@@ -153,6 +153,38 @@ export function tryIdentifyFromAccessToken(authorizationHeader: string | undefin
   return result.ok ? result.userId : null;
 }
 
+/**
+ * Logout that works after the 15-minute access token has expired.
+ *
+ * The caller may be identified by a still-valid access token, by the refresh
+ * token the client also holds, or both. Every identity found has all its
+ * sessions revoked (logout = sign out everywhere, see docs/api-contract.md §3.1).
+ * An unknown or garbage refresh token identifies no one and is not an error:
+ * logout must never block the client.
+ */
+export async function logout(authorizationHeader: string | undefined, refreshToken: unknown): Promise<void> {
+  const userIds = new Set<string>();
+
+  const fromAccessToken = tryIdentifyFromAccessToken(authorizationHeader);
+  if (fromAccessToken) {
+    userIds.add(fromAccessToken);
+  }
+
+  if (typeof refreshToken === 'string' && refreshToken.length > 0) {
+    const session = await prisma.session.findUnique({
+      where: { refreshHash: hashRefreshToken(refreshToken) },
+      select: { userId: true },
+    });
+    if (session) {
+      userIds.add(session.userId);
+    }
+  }
+
+  for (const userId of userIds) {
+    await logoutAllSessions(userId);
+  }
+}
+
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /**

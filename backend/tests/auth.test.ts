@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
+import jwt from 'jsonwebtoken';
 import type { Express } from 'express';
 import { buildTestApp, registerUser } from './helpers/test-app.js';
 import { resetDb } from './helpers/db.js';
@@ -92,6 +93,39 @@ describe('POST /api/auth/register', () => {
         displayName: expect.any(String),
       }),
     );
+  });
+});
+
+describe('password length is measured in bytes (bcrypt truncates at 72 bytes)', () => {
+  it('rejects a register password over 72 bytes even when it is under 72 characters', async () => {
+    // 40 Arabic letters = 40 characters but 80 bytes: bcrypt would silently ignore the tail.
+    const res = await request(app).post('/api/auth/register').send({
+      username: 'bytecheck',
+      email: 'bytecheck@example.com',
+      password: 'ش'.repeat(40),
+      displayName: 'Byte Check',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.fields.password).toMatch(/72 bytes/);
+  });
+
+  it('accepts a password of exactly 72 bytes', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      username: 'bytecheck2',
+      email: 'bytecheck2@example.com',
+      password: 'ش'.repeat(36), // 72 bytes
+      displayName: 'Byte Check',
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('applies the same rule to reset-password', async () => {
+    const res = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: 'whatever', newPassword: 'ش'.repeat(40) });
+    expect(res.status).toBe(400);
+    expect(res.body.error.fields.newPassword).toMatch(/72 bytes/);
   });
 });
 
@@ -240,6 +274,49 @@ describe('POST /api/auth/logout', () => {
       .send({ refreshToken: second.body.refreshToken as string });
     expect(refreshFirst.status).toBe(401);
     expect(refreshSecond.status).toBe(401);
+  });
+
+  // Access tokens live 15 minutes, so a user logging out after a pause has only an
+  // expired one. Without the refresh token in the body, nothing identifies them.
+  it('revokes the session when the access token is expired but the refresh token is sent', async () => {
+    const { user, refreshToken } = await registerUser(app);
+    const expired = jwt.sign({ sub: user.id }, 'test-access-secret', { expiresIn: -10 });
+
+    const res = await request(app)
+      .post('/api/auth/logout')
+      .set('Authorization', `Bearer ${expired}`)
+      .send({ refreshToken });
+    expect(res.status).toBe(204);
+
+    const refreshAttempt = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    expect(refreshAttempt.status).toBe(401);
+  });
+
+  it('revokes every session of the owner when only a refresh token is sent', async () => {
+    const first = await registerUser(app, { username: 'refreshonly', password: 'correct-horse-battery' });
+    const second = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'refreshonly', password: 'correct-horse-battery' });
+
+    const res = await request(app).post('/api/auth/logout').send({ refreshToken: first.refreshToken });
+    expect(res.status).toBe(204);
+
+    const a = await request(app).post('/api/auth/refresh').send({ refreshToken: first.refreshToken });
+    const b = await request(app).post('/api/auth/refresh').send({ refreshToken: second.body.refreshToken as string });
+    expect(a.status).toBe(401);
+    expect(b.status).toBe(401);
+  });
+
+  it('still returns 204 for an unknown or malformed refresh token, and touches no one else', async () => {
+    const bystander = await registerUser(app);
+
+    const unknown = await request(app).post('/api/auth/logout').send({ refreshToken: 'not-a-real-token' });
+    const malformed = await request(app).post('/api/auth/logout').send({ refreshToken: 12345 });
+    expect(unknown.status).toBe(204);
+    expect(malformed.status).toBe(204);
+
+    const stillValid = await request(app).post('/api/auth/refresh').send({ refreshToken: bystander.refreshToken });
+    expect(stillValid.status).toBe(200);
   });
 });
 

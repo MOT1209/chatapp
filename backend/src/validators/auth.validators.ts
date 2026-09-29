@@ -1,5 +1,16 @@
 import { z } from 'zod';
 
+// bcrypt only uses the first 72 BYTES of the input and silently ignores the rest.
+// String length counts characters, so a 40-letter Arabic password (80 bytes) would
+// pass a `.max(72)` check while its last 4 letters were never part of the hash.
+const MAX_PASSWORD_BYTES = 72;
+const passwordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters.')
+  .refine((v) => Buffer.byteLength(v, 'utf8') <= MAX_PASSWORD_BYTES, {
+    message: `Password must be at most ${MAX_PASSWORD_BYTES} bytes (fewer characters if it uses non-Latin letters).`,
+  });
+
 export const registerSchema = z.object({
   username: z
     .string()
@@ -11,10 +22,7 @@ export const registerSchema = z.object({
       message: 'Username may only contain lowercase letters, numbers, "_" and ".".',
     }),
   email: z.string().trim().toLowerCase().email('Enter a valid email address.'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters.')
-    .max(72, 'Password must be at most 72 characters.'),
+  password: passwordSchema,
   displayName: z
     .string()
     .trim()
@@ -39,8 +47,5 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1, 'token is required.'),
-  newPassword: z
-    .string()
-    .min(8, 'Password must be at least 8 characters.')
-    .max(72, 'Password must be at most 72 characters.'),
+  newPassword: passwordSchema,
 });
