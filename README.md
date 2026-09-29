@@ -30,7 +30,8 @@ register → search → chat → realtime flow actually works end to end.
 
 Explicitly **not** in Alpha v0.0.1: groups, file sharing, voice messages, video
 calls, AI features, notifications, message editing, real email delivery for
-password reset (the token is logged to the console instead — see
+password reset (the token is logged to the console in development only, and
+never logged, returned, or exposed at all in production — see
 `docs/api-contract.md` §6.6).
 
 ## Architecture
@@ -106,8 +107,8 @@ Example: `flutter run --dart-define=API_URL=http://10.0.2.2:4000 --dart-define=W
 | `PORT` | HTTP port (default `4000`) |
 | `CORS_ORIGIN` | Comma-separated allowed origins |
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_ACCESS_SECRET` | HMAC secret for access tokens (Alpha) |
-| `JWT_REFRESH_SECRET` | HMAC secret for refresh tokens (Alpha) |
+| `JWT_ACCESS_SECRET` | HMAC secret for access tokens. In production must be long, random, and distinct from `JWT_REFRESH_SECRET` — the server refuses to start otherwise. Short/placeholder values are fine in development and test |
+| `JWT_REFRESH_SECRET` | HMAC secret for refresh tokens. Same production requirement as above |
 | `JWT_ACCESS_TTL` | Access token TTL (default `15m`) |
 | `JWT_REFRESH_TTL` | Refresh token TTL (default `30d`) |
 | `BCRYPT_ROUNDS` | bcrypt cost factor for password hashing (default `10`) |

@@ -82,8 +82,8 @@ App, from `app/`: `flutter run`, `flutter analyze`, `flutter test`, `dart format
 | `PORT` | HTTP port (default `4000`) |
 | `CORS_ORIGIN` | Comma-separated allowed origins |
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_ACCESS_SECRET` | HMAC secret for access tokens (Alpha) |
-| `JWT_REFRESH_SECRET` | HMAC secret for refresh tokens (Alpha) |
+| `JWT_ACCESS_SECRET` | HMAC secret for access tokens. Production rejects short values, known placeholders (`secret`, `change-me`, …), or a value identical to `JWT_REFRESH_SECRET` — the server won't start. development/test allow short, obviously-fake values |
+| `JWT_REFRESH_SECRET` | HMAC secret for refresh tokens. Same production requirement as above |
 | `JWT_ACCESS_TTL` | Access token TTL (default `15m`) |
 | `JWT_REFRESH_TTL` | Refresh token TTL (default `30d`) |
 | `BCRYPT_ROUNDS` | bcrypt cost factor for password hashing (default `10`) |

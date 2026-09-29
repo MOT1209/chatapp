@@ -67,11 +67,16 @@ and vitest sets these first) — see the comment there if you need a different s
 locally. Each test file resets the database between tests
 (`tests/helpers/db.ts`); tests run in a single worker since they share one database.
 
-Covers: register, login, session refresh/rotation, logout, authentication
-middleware, user search, profile update, conversation creation (including
-idempotency), message send (including clientId de-duplication), cursor
-pagination, read receipts, message deletion, and the full WebSocket protocol
-(auth handshake, `message:new`, `typing`, `presence`, `read`, heartbeat).
+Covers: register, login, session refresh/rotation, session expiry, logout
+(including multi-session revocation), authentication middleware, user search,
+profile update, conversation creation (including idempotency), message send
+(including clientId de-duplication), cursor pagination, read receipts,
+message deletion, and the full WebSocket protocol (auth handshake,
+`message:new`, `typing`, `presence`, `read`, heartbeat) including its runtime
+frame validation, authorization checks, and crash-safety (oversized frames,
+malformed JSON, unknown types). A separate `tests/security.test.ts` covers
+JWT secret strength validation, error-response sanitization, and real
+rate-limit enforcement.
 
 ## Scripts
 
@@ -121,16 +126,50 @@ backend/
 
 - Passwords hashed with bcrypt (`BCRYPT_ROUNDS`, default 10).
 - Refresh tokens are opaque random strings; only their SHA-256 hash is stored
-  (`Session.refreshHash`). Rotated on every use.
+  (`Session.refreshHash`). Rotated on every use; the old token is dead the
+  moment a new one is issued from it.
 - Access tokens are short-lived JWTs (`JWT_ACCESS_TTL`, default 15m).
+- **`JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` are validated at startup in
+  production** (`src/config/env.ts`): too short, identical to each other, or
+  a known placeholder (`secret`, `change-me`, `dev-secret`, …) and the process
+  refuses to start. `development`/`test` allow short, obviously-fake values —
+  see `.env.example`. Never logged.
+- Password reset tokens: random, only their hash stored, single-use, 1-hour
+  expiry, resetting invalidates every existing session. The raw token is
+  environment-gated (`canExposeRawResetToken` in `auth.service.ts`) — logged
+  in development, returned only to test code, **never logged, returned, or
+  otherwise exposed in production** (no email provider is wired up yet — see
+  `docs/api-contract.md` §6.6, and until one is, the token is unrecoverable
+  once created, by design).
+- `POST /auth/logout` revokes **every** session for the account, not just the
+  caller's — see `docs/api-contract.md`'s logout section.
 - Auth, user search, and message-send routes are rate limited
-  (`src/middleware/rate-limit.ts`); disabled automatically when `NODE_ENV=test`.
+  (`src/middleware/rate-limit.ts`); disabled automatically when `NODE_ENV=test`
+  (`tests/security.test.ts` verifies the real 429/`Retry-After`/`RATE_LIMITED`
+  behavior against an isolated instance of the same limiter, bypassing that
+  test-mode switch).
 - CORS is restricted to `CORS_ORIGIN`; Helmet sets standard security headers.
-- Every input is validated with Zod before it reaches a service.
+- Every input is validated with Zod before it reaches a service — REST bodies
+  and query params, and every WebSocket frame (`src/validators/realtime.validators.ts`):
+  an unknown frame type, a missing or mistyped field, or malformed JSON is
+  rejected with a `VALIDATION_ERROR` frame, connection kept alive. Frames over
+  16KB are rejected at the transport level.
+- WebSocket `typing`/`read` frames are authorization-checked against real
+  conversation membership, not just a valid access token — a frame for a
+  conversation the sender isn't in is dropped silently, no broadcast, no error
+  frame, connection stays open.
+- Both the WebSocket server and every individual socket have an `error`
+  listener (`src/realtime/ws-server.ts`). Node's `EventEmitter` throws on an
+  unhandled `'error'` event, so without these, one bad frame (or an oversized
+  one hitting `maxPayload`) could crash the whole process and every other
+  connection with it.
 - A direct conversation's existence is not confirmed to a non-participant — accessing
   one you're not a member of returns `NOT_FOUND`, not `FORBIDDEN`.
-- No email/SMTP integration yet — see `docs/api-contract.md` §6.6. Password reset
-  tokens are logged to the server console in development, not emailed.
+- The error handler (`src/middleware/error-handler.ts`) never puts a stack
+  trace, a raw error message, or any internal detail in an HTTP response —
+  unexpected errors always become a generic `SERVER_ERROR`; the real detail
+  goes only to the server-side logger.
+- No email/SMTP integration yet — see `docs/api-contract.md` §6.6.
 
 ## Contract
 
