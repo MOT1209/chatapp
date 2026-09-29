@@ -172,6 +172,28 @@ describe('POST /api/auth/refresh', () => {
     expect(res.status).toBe(401);
   });
 
+  it('lets only one of several concurrent refreshes with the same token succeed', async () => {
+    const { refreshToken } = await registerUser(app, { username: 'refreshrace' });
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => request(app).post('/api/auth/refresh').send({ refreshToken })),
+    );
+    expect(results.filter((r) => r.status === 200)).toHaveLength(1);
+  });
+
+  it('revokes every session when a rotated-out refresh token is replayed', async () => {
+    const { refreshToken } = await registerUser(app, { username: 'replayed' });
+    const rotated = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    expect(rotated.status).toBe(200);
+
+    // Replaying the old token is treated as theft: the legitimately rotated token dies too.
+    const replay = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    expect(replay.status).toBe(401);
+    const afterReplay = await request(app)
+      .post('/api/auth/refresh')
+      .send({ refreshToken: rotated.body.refreshToken as string });
+    expect(afterReplay.status).toBe(401);
+  });
+
   it('rejects a refresh token whose session has expired', async () => {
     const { refreshToken } = await registerUser(app, { username: 'expiredsession' });
     // The session exists and is unrevoked — only its expiry is in the past.

@@ -21,7 +21,7 @@ const router = Router();
 
 router.post('/register', authRateLimit, validateBody(registerSchema), registerHandler);
 router.post('/login', authRateLimit, validateBody(loginSchema), loginHandler);
-router.post('/refresh', validateBody(refreshSchema), refreshHandler);
+router.post('/refresh', authRateLimit, validateBody(refreshSchema), refreshHandler);
 router.post('/logout', logoutHandler);
 router.post('/forgot-password', authRateLimit, validateBody(forgotPasswordSchema), forgotPasswordHandler);
 router.post('/reset-password', authRateLimit, validateBody(resetPasswordSchema), resetPasswordHandler);

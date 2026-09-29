@@ -102,7 +102,15 @@ export function createWsServer(httpServer: HttpServer): WebSocketServer {
           clearTimeout(authTimer);
           authTimer = null;
         }
-        await handleConnect(result.userId, socket);
+        try {
+          await handleConnect(result.userId, socket);
+        } catch (err) {
+          // Presence bookkeeping failed; don't leave a registered socket the client
+          // was never told is ready. Closing triggers the normal disconnect cleanup.
+          logger.error('ws connect handler failed', { err: err instanceof Error ? err.message : String(err) });
+          socket.close(1011, 'internal error');
+          return;
+        }
         send(socket, { type: 'ready', payload: { userId: result.userId } });
         return;
       }

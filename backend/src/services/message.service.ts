@@ -3,6 +3,7 @@ import { forbidden, notFound, validationError } from '../lib/errors.js';
 import { serializeMessage, type MessageDTO } from '../lib/serializers.js';
 import { assertMember, getOtherMemberIds } from './conversation.service.js';
 import { wsHub } from '../realtime/ws-hub.js';
+import { isUniqueConstraintError } from '../lib/prisma-errors.js';
 
 export async function sendMessage(
   userId: string,
@@ -26,17 +27,33 @@ export async function sendMessage(
     return { message: serializeMessage(existing), isNew: false };
   }
 
-  const created = await prisma.$transaction(async (tx) => {
-    const message = await tx.message.create({
-      data: { conversationId, senderId: userId, clientId, body },
-      include: { sender: true },
+  let created;
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const message = await tx.message.create({
+        data: { conversationId, senderId: userId, clientId, body },
+        include: { sender: true },
+      });
+      await tx.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: message.createdAt },
+      });
+      return message;
     });
-    await tx.conversation.update({
-      where: { id: conversationId },
-      data: { updatedAt: message.createdAt },
-    });
-    return message;
-  });
+  } catch (err) {
+    // Two concurrent sends with the same clientId raced past the check above.
+    // The loser returns the winner's row, which is what makes retries idempotent.
+    if (isUniqueConstraintError(err)) {
+      const winner = await prisma.message.findUnique({
+        where: { senderId_clientId: { senderId: userId, clientId } },
+        include: { sender: true },
+      });
+      if (winner && winner.conversationId === conversationId) {
+        return { message: serializeMessage(winner), isNew: false };
+      }
+    }
+    throw err;
+  }
 
   const dto = serializeMessage(created);
 
