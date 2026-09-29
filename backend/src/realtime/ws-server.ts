@@ -29,7 +29,7 @@ const DEFAULT_FRAME_WINDOW_MS = 10_000;
 // A socket that misses one full cycle is dead: terminate it so presence is corrected.
 const DEFAULT_HEARTBEAT_MS = 30_000;
 
-type Session = { userId: string };
+type Session = { userId: string; expiresAtMs: number };
 
 export type WsServerOptions = {
   frameLimit?: number;
@@ -81,6 +81,9 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
       framesInWindow += 1;
       return framesInWindow > frameLimit;
     }
+    // Closes the socket when the access token it authenticated with expires, so a
+    // connection cannot outlive its credentials. The client refreshes and reconnects on 4401.
+    let expiryTimer: ReturnType<typeof setTimeout> | null = null;
     let authTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
       if (!session) {
         socket.close(4401, 'auth timeout');
@@ -106,6 +109,10 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
       if (authTimer) {
         clearTimeout(authTimer);
         authTimer = null;
+      }
+      if (expiryTimer) {
+        clearTimeout(expiryTimer);
+        expiryTimer = null;
       }
       if (session) {
         const { userId } = session;
@@ -145,7 +152,10 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
           socket.close(4401, 'invalid token');
           return;
         }
-        session = { userId: result.userId };
+        session = { userId: result.userId, expiresAtMs: result.expiresAtMs };
+        // setTimeout caps at ~24.8 days; access tokens live minutes, but clamp anyway.
+        const remainingMs = Math.min(Math.max(result.expiresAtMs - Date.now(), 0), 2 ** 31 - 1);
+        expiryTimer = setTimeout(() => socket.close(4401, 'token expired'), remainingMs);
         if (authTimer) {
           clearTimeout(authTimer);
           authTimer = null;

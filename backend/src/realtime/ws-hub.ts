@@ -73,6 +73,26 @@ class WsHub {
     }
   }
 
+  /**
+   * Closes every socket a user has, e.g. after logout or a password reset, so a
+   * connection cannot outlive the credentials it was authenticated with. Each
+   * socket's 'close' handler runs the normal presence cleanup.
+   */
+  closeUser(userId: string, code: number, reason: string): void {
+    const sockets = this.socketsByUser.get(userId);
+    if (!sockets) {
+      return;
+    }
+    for (const socket of [...sockets]) {
+      try {
+        socket.close(code, reason);
+      } catch (err) {
+        logger.warn('ws close failed', { err: err instanceof Error ? err.message : String(err) });
+        this.dropBroken(socket);
+      }
+    }
+  }
+
   private dropBroken(socket: WebSocket): void {
     try {
       socket.terminate();

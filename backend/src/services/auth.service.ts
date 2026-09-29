@@ -11,6 +11,7 @@ import { conflict, invalidCredentials, unauthenticated, validationError } from '
 import { serializeUser, type UserDTO } from '../lib/serializers.js';
 import { isUniqueConstraintError } from '../lib/prisma-errors.js';
 import { env } from '../config/env.js';
+import { wsHub } from '../realtime/ws-hub.js';
 import crypto from 'node:crypto';
 
 export type AuthTokens = { accessToken: string; refreshToken: string };
@@ -141,6 +142,8 @@ export async function logoutAllSessions(userId: string): Promise<void> {
     where: { userId, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+  // The credentials are gone; realtime connections must not outlive them.
+  wsHub.closeUser(userId, 4401, 'signed out');
 }
 
 /** Best-effort: identifies the caller from a bearer token without throwing. */
@@ -266,4 +269,5 @@ export async function resetPassword(rawToken: string, newPassword: string): Prom
     // A password reset should kill every existing session, stolen or not.
     prisma.session.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
   ]);
+  wsHub.closeUser(record.userId, 4401, 'password reset');
 }

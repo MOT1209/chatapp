@@ -210,7 +210,7 @@ document therefore overstated what was open. This section corrects it.
 | F-02 refresh rotation race | **Fixed by #12** | Re-probe: 6 concurrent refreshes → `401,401,200,401,401,401`, 1 live session. Also revokes all sessions when a rotated-out token is replayed. Trade-off to know: a client that lost the response and retries with the old token signs the user out everywhere. |
 | F-03 same-`clientId` race | **Fixed by #12** | Re-probe: `200 ×7, 201 ×1`. |
 | F-04 presence | **Mostly fixed by #12** (READ) | Boot reset, protocol ping/pong with terminate, graceful WS shutdown. **Still open:** connect/disconnect write ordering can leave `isOnline=false` for a connected user. |
-| F-05 WS outlives token/logout/reset | **Open** | Not addressed. |
+| F-05 WS outlives token/logout/reset | **Fixed** | Socket closes with 4401 at access-token expiry and on logout / password reset; regression tests in `tests/realtime-resilience.test.ts`. |
 | F-06 WS frame limits | **Partly fixed by #12** (READ) | Per-socket budget for `typing`/`read`. **Still open:** per-user connection cap; membership lookup per `typing` frame. |
 | F-07 dependency vulnerabilities | **Open** | Re-run: still 4 vulnerabilities (2 high) on `express@4.21.2`. #12 added an `npm audit` CI step but with `continue-on-error: true`, so it does not gate anything. |
 | F-08 bad cursor date → 500 | **Fixed in this PR** | Was `500` on `main`. 3 new test cases; the unparseable-date one failed before the fix. |
@@ -223,5 +223,5 @@ document therefore overstated what was open. This section corrects it.
 | F-15 to F-20 | **Open** | Not addressed. |
 | F-21 to F-26 | **Open** | Except: #12 pinned JWT verification to HS256 and removed credentialed CORS (both good, neither was in this audit). |
 
-**Open P1 items after this PR:** F-05, F-07, and the remaining halves of F-04 and F-06.
+**Open P1 items after this PR:** F-07, and the remaining halves of F-04 and F-06.
 **Proposed next block:** F-07 (dependency bump plus a CI audit that fails on high), then F-05 (WebSocket vs token lifetime).
