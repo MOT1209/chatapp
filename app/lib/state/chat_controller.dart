@@ -188,6 +188,17 @@ class ChatController extends ChangeNotifier {
   }
 
   void _onFrame(ServerFrame frame) {
+    try {
+      _handleFrame(frame);
+    } on TypeError {
+      // A frame with an unexpected shape (e.g. from a newer server) must not
+      // surface as an unhandled error in the stream listener; drop it.
+    } on FormatException {
+      // Same: an unparsable timestamp in a frame.
+    }
+  }
+
+  void _handleFrame(ServerFrame frame) {
     final p = frame.payload;
     switch (frame.type) {
       case 'message:new' || 'message:updated':

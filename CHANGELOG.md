@@ -2,6 +2,41 @@
 
 All notable changes to ChatApp are documented here.
 
+## Unreleased (prepared for v0.0.2-beta)
+
+`v0.0.1-alpha` is immutable; everything below ships in the next release.
+No tag or release has been created.
+
+### Fixed
+
+- **Realtime:** `WsHub.sendToUser` and the per-socket `send` no longer let a
+  socket that closes between the `OPEN` check and `send()` throw into the
+  caller (previously a committed message could return 500, prompting a client
+  retry). A failing socket is terminated so presence cleanup runs; the user's
+  other sockets still receive the frame.
+- **Presence:** connect/disconnect DB writes are now serialized per user and
+  decided from live hub state, so a fast reconnect cannot leave a connected
+  user stored as offline.
+- **Auth:** logout now accepts an optional `refreshToken` body field so
+  sessions are revoked even when the access token has already expired
+  (audit F-01). The Flutter client sends it.
+- **Logging:** unhandled Prisma errors log only their type/code/target, never
+  the message text, which embeds query arguments (audit F-17).
+- **Dependencies:** `express` 4.21.2 → 4.22.3; `npm audit --omit=dev` is clean
+  and the CI audit step is now blocking.
+- **Flutter:** unexpected realtime frame shapes and writes to a just-closed
+  socket are dropped instead of raising unhandled errors. *Not executed:*
+  no Flutter SDK was available for this change.
+- **DX:** root `npm run install:all` now also installs root dependencies, so
+  `npm run install:all && npm run dev` works on a fresh clone.
+
+### Tests
+
+- Added hub send-failure, multi-socket presence, fast-reconnect, expired WS
+  token, duplicate `auth` frame, production reset-token non-exposure,
+  send-failure + retry idempotency, expired-token logout, and log-redaction
+  tests (backend: 88 → 101).
+
 ## v0.0.1-alpha
 
 First end-to-end release: two real accounts can register, find each other,

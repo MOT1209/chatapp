@@ -1,5 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
+import jwt from 'jsonwebtoken';
+import { env } from '../src/config/env.js';
 import type { Express } from 'express';
 import { buildTestApp, registerUser } from './helpers/test-app.js';
 import { resetDb } from './helpers/db.js';
@@ -369,5 +371,26 @@ describe('POST /api/auth/reset-password', () => {
       .post('/api/auth/reset-password')
       .send({ token: result!.resetToken, newPassword: 'whatever-new-123' });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/auth/logout with an expired access token', () => {
+  it('still revokes the session when the refresh token is supplied in the body', async () => {
+    const { user, refreshToken } = await registerUser(app, { username: 'expiredlogout', email: 'expiredlogout@example.com' });
+    const expired = jwt.sign({ sub: user.id }, env.JWT_ACCESS_SECRET, { expiresIn: -10 });
+
+    const res = await request(app)
+      .post('/api/auth/logout')
+      .set('Authorization', `Bearer ${expired}`)
+      .send({ refreshToken });
+    expect(res.status).toBe(204);
+
+    const refresh = await request(app).post('/api/auth/refresh').send({ refreshToken });
+    expect(refresh.status).toBe(401);
+  });
+
+  it('stays 204 and revokes nothing for an unknown refresh token', async () => {
+    const res = await request(app).post('/api/auth/logout').send({ refreshToken: 'not-a-real-token' });
+    expect(res.status).toBe(204);
   });
 });

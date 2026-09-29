@@ -29,7 +29,11 @@ export const refreshHandler = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const logoutHandler = asyncHandler(async (req: Request, res: Response) => {
-  const userId = authService.tryIdentifyFromAccessToken(req.headers.authorization);
+  const body = req.body as { refreshToken?: unknown } | undefined;
+  const refreshToken = typeof body?.refreshToken === 'string' ? body.refreshToken : undefined;
+  const userId =
+    authService.tryIdentifyFromAccessToken(req.headers.authorization) ??
+    (await authService.tryIdentifyFromRefreshToken(refreshToken));
   if (userId) {
     await authService.logoutAllSessions(userId);
   }

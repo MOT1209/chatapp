@@ -143,6 +143,22 @@ export async function logoutAllSessions(userId: string): Promise<void> {
   });
 }
 
+/**
+ * Best-effort: identifies the owner of a refresh token without throwing or
+ * revealing whether it was valid. Lets logout work after the 15-minute access
+ * token has expired, which is when most users actually tap "Log out".
+ */
+export async function tryIdentifyFromRefreshToken(refreshToken: string | undefined): Promise<string | null> {
+  if (!refreshToken) {
+    return null;
+  }
+  const session = await prisma.session.findUnique({
+    where: { refreshHash: hashRefreshToken(refreshToken) },
+    select: { userId: true },
+  });
+  return session?.userId ?? null;
+}
+
 /** Best-effort: identifies the caller from a bearer token without throwing. */
 export function tryIdentifyFromAccessToken(authorizationHeader: string | undefined): string | null {
   if (!authorizationHeader?.startsWith('Bearer ')) {

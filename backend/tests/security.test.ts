@@ -132,3 +132,18 @@ describe('rate limiting — real 429 behaviour', () => {
     }
   });
 });
+
+describe('error logging redaction', () => {
+  it('logs only the type and code of Prisma errors, never their message (which embeds query arguments)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const { describeError } = await import('../src/middleware/error-handler.js');
+    const err = new Prisma.PrismaClientKnownRequestError('Invalid `create()` args: body: "my secret message"', {
+      code: 'P2002',
+      clientVersion: 'test',
+      meta: { target: ['senderId', 'clientId'] },
+    });
+    const logged = JSON.stringify(describeError(err));
+    expect(logged).not.toContain('secret message');
+    expect(logged).toContain('P2002');
+  });
+});

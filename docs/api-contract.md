@@ -161,7 +161,7 @@ Success response:
 {
   "user": { "id": "...", "username": "ahmad", "email": "ahmad@example.com", "displayName": "Ahmad", "avatarUrl": null, "isOnline": false, "lastSeenAt": null, "createdAt": "2026-09-28T10:00:00.000Z" },
   "accessToken": "eyJhbGciOi...",
-  "refreshToken": "eyJhbGciOi..."
+  "refreshToken": "9f2c…(96 hex chars, opaque)"
 }
 ```
 
@@ -188,13 +188,13 @@ Errors: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401).
 Request:
 
 ```json
-{ "refreshToken": "eyJhbGciOi..." }
+{ "refreshToken": "9f2c…(96 hex chars, opaque)" }
 ```
 
 Success response — **both** tokens are returned, because the backend is free to rotate the refresh token:
 
 ```json
-{ "accessToken": "eyJhbGciOi...", "refreshToken": "eyJhbGciOi..." }
+{ "accessToken": "eyJhbGciOi...", "refreshToken": "9f2c…(96 hex chars, opaque)" }
 ```
 
 Errors: `UNAUTHENTICATED` (401) when the refresh token is missing, malformed, expired or revoked.
@@ -202,12 +202,14 @@ Errors: `UNAUTHENTICATED` (401) when the refresh token is missing, malformed, ex
 #### `POST /api/auth/logout` → 204
 
 **Logs out every session for the account — every device, not just the caller's.**
-No body is sent, so the backend has no single refresh token to target even if
-it wanted one; it identifies the caller from whatever access token is still
-attached (best-effort — a missing or already-expired one is not an error, see
-below) and revokes all of that user's active sessions at once. There is no
-per-device "log out this device only" in v1 — logging out on a phone also
-signs out the desktop client, the web tab, everything.
+The caller is identified from either (a) a still-valid access token in the
+`Authorization` header, or (b) the optional body field `{ "refreshToken": "..." }`
+(the client sends it because the access token is usually expired by the time a
+user logs out). Either is enough; both are best-effort — a missing, expired or
+unknown credential is not an error and revokes nothing. All of that user's
+active sessions are revoked at once. There is no per-device "log out this
+device only" in v1 — logging out on a phone also signs out the desktop
+client, the web tab, everything.
 
 The frontend clears local storage and returns to the login screen regardless
 of what the server did. A failure here must not block logout on the client,
@@ -489,6 +491,13 @@ most, so this is a size-limit backstop, not a business rule).
 | `error` | `{ "code": "UNAUTHENTICATED", "message": "..." }` — same `code` values as REST §1.2 |
 
 ### 4.5 Delivery expectations
+
+The database is the source of truth; the socket is best-effort push. A message
+is committed before any frame is sent, so a failed or closed socket never fails
+or duplicates a send: the REST call still succeeds, a retry with the same
+`clientId` returns the original message, and the recipient sees it through
+history (§4.6 reload) on the next connect. A socket whose write fails is
+terminated by the server; the client's reconnect logic takes over.
 
 | Event | Target latency |
 | --- | --- |

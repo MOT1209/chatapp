@@ -37,7 +37,10 @@ class ChatApi {
   /// Contract §3.1: a failed logout request must not block logout on the client.
   Future<void> logout() async {
     try {
-      await client.post('/auth/logout');
+      // Send the refresh token too: the access token is usually expired by the
+      // time a user logs out, and without it the server could not revoke anything.
+      final stored = await _tokens.read();
+      await client.post('/auth/logout', body: {if (stored != null) 'refreshToken': stored.refreshToken});
     } on Exception {
       // Tokens are cleared below regardless.
     }

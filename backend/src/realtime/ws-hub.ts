@@ -1,5 +1,6 @@
 import type { WebSocket } from 'ws';
 import type { ServerFrame } from '../types/realtime.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * In-process registry of live sockets per user.
@@ -41,16 +42,42 @@ class WsHub {
     return this.socketsByUser.has(userId);
   }
 
+  /**
+   * Best-effort push. The database is the source of truth; a socket that closes
+   * between the readyState check and send() (or whose send() throws) must never
+   * fail the caller, whose write has already been committed, nor starve the
+   * user's other sockets. A socket that fails is terminated so its 'close'
+   * handler runs the normal presence cleanup.
+   */
   sendToUser(userId: string, frame: ServerFrame): void {
     const sockets = this.socketsByUser.get(userId);
     if (!sockets || sockets.size === 0) {
       return;
     }
     const json = JSON.stringify(frame);
-    for (const socket of sockets) {
-      if (socket.readyState === socket.OPEN) {
-        socket.send(json);
+    // Iterate a snapshot: cleanup triggered by a failing socket mutates the live set.
+    for (const socket of [...sockets]) {
+      if (socket.readyState !== socket.OPEN) {
+        continue;
       }
+      try {
+        socket.send(json, (err?: Error) => {
+          if (err) {
+            this.dropBroken(socket);
+          }
+        });
+      } catch (err) {
+        logger.warn('ws send failed', { err: err instanceof Error ? err.message : String(err) });
+        this.dropBroken(socket);
+      }
+    }
+  }
+
+  private dropBroken(socket: WebSocket): void {
+    try {
+      socket.terminate();
+    } catch {
+      // Already gone; nothing else to clean up here.
     }
   }
 }
