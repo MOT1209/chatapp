@@ -76,7 +76,11 @@ message deletion, and the full WebSocket protocol (auth handshake,
 frame validation, authorization checks, and crash-safety (oversized frames,
 malformed JSON, unknown types). A separate `tests/security.test.ts` covers
 JWT secret strength validation, error-response sanitization, and real
-rate-limit enforcement.
+rate-limit enforcement. `tests/e2e.test.ts` chains all of the above into one
+continuous two-user journey — register, search, create a conversation, send,
+receive live, type, read, go offline/online, reply, receive the reply live —
+the closest this test suite gets to proving the actual release goal rather
+than just its individual pieces.
 
 ## Scripts
 

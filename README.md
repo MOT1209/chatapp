@@ -172,12 +172,14 @@ Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 ## Roadmap
 
 - **Phase 0 — Foundation.** ✅ Scaffolding, docs, CI, contract.
-- **Alpha v0.0.1 (this).** ✅ Authentication → users → conversations → messages → realtime. First working E2E flow.
+- **Phase 0.1 — Security & Hardening.** ✅ Runtime WebSocket validation/authorization, production JWT secret checks, password-reset token exposure locked down, crash-safety fixes.
+- **Alpha v0.0.1 (this).** ✅ Authentication → users → conversations → messages → realtime, verified end to end for two independent accounts (`backend/tests/e2e.test.ts`) — see [`CHANGELOG.md`](CHANGELOG.md).
 - **Post-Alpha.** Groups, file upload, presence for group chats, avatars, message editing, real email delivery, iOS CI build.
 - **Later.** Voice messages, video calls, AI features, notifications.
 
 ## Documentation
 
+- [`CHANGELOG.md`](CHANGELOG.md) — what shipped in each release.
 - [`docs/api-contract.md`](docs/api-contract.md) — HTTP + WebSocket contract (source of truth).
 - [`docs/architecture.md`](docs/architecture.md) — system shape and boundaries.
 - [`docs/development.md`](docs/development.md) — setup and daily commands.
