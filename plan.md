@@ -143,3 +143,34 @@
 Groups · Files · Voice · Calls · AI · Message editing/deletion · Avatar upload · Presence للدردثات الجماعية.
 
 الأساس جاهز لـ: `Conversation.type` و `User` embedded يسمحان بالتوسّع، وطبقة `api.ts` تجعل إضافة endpoint ملف واحد.
+
+---
+
+## 7. Alpha v0.0.1 — الـBackend (منجز)
+
+بُني الـbackend بالكامل مطابقًا لـ`docs/api-contract.md`:
+
+- **البنية:** طبقة تخزين خلف واجهة `DataStore` بتطبيقين — `PrismaStore` (PostgreSQL للتشغيل) و`MemoryStore` (داخل الذاكرة للاختبارات وللتشغيل دون قاعدة بيانات عبر `STORE=memory`). خدمات لا تعتمد على Prisma مباشرة، وحقن اعتماديات عبر `AppContext`.
+- **المصادقة:** register · login (username أو email) · refresh مع **rotation + كشف إعادة الاستخدام** · logout (إبطال كل الجلسات) · forgot/reset password.
+- **الرسائل:** إرسال **idempotent** على `(conversationId, senderId, clientId)` — إعادة المحاولة تُرجع الرسالة نفسها (200).
+- **Realtime:** WebSocket خام (JSON): مصافحة `auth` (إغلاق 4401 بعد 5s دون مصادقة) · ping/pong · `message:new` · typing · presence بعدّ مرجعي (multi-socket) · read receipts. عميل سيئ (JSON تالف / إطار مجهول / oversized) لا يُسقط الخادم.
+- **الأمان:** لا تسرّب `passwordHash`/tokens/secrets في الاستجابات · البريد لا يظهر إلا لصاحبه · rate limiting على المصادقة والبحث والإرسال مع `Retry-After` · في production **لا يُسجَّل** raw reset token.
+- **التحقق:** 76 اختبار backend (وحدة + تكامل REST + WebSocket حيّ) + تحقق حيّ عبر عملية فعلية (14 فحصًا) + تحقق يدوي في Chrome.
+
+## 8. Post-Alpha (مؤجّل — غير مطلوب للـAlpha)
+
+مشاكل production يجب معالجتها لاحقًا (ليست عيوبًا في Alpha):
+
+- **بريد إعادة تعيين كلمة المرور:** لا يوجد مزوّد بريد؛ في التطوير يُسجَّل الـtoken فقط. يحتاج Email Provider + رابط إعادة تعيين حقيقي.
+- **تخزين التوكن في الويب (localStorage):** عرضة لـXSS (متفق عليه في العقد لتبسيط Alpha). يُفضّل لاحقًا cookies بخاصية HttpOnly/SameSite أو استراتيجية أكثر أمانًا.
+- **النشر:** استضافة قاعدة البيانات، domain، TLS، متغيرات البيئة، migrations في الإنتاج (`prisma migrate deploy`).
+- **التوسّع الأفقي:** الـrate limiter والـpresence hub في الذاكرة/العملية الواحدة — يحتاجان مخزنًا مشتركًا (Redis) عند تعدد العمليات.
+- **الميزات المؤجّلة:** Groups · File sharing · Voice/Video · AI · Push notifications · Message reactions/editing/deletion · Admin dashboard · Avatar upload.
+
+### ملاحظات معروفة غير حرجة (Frontend)
+
+- **حجم الحزمة 566 kB** (175 kB gzip) — code splitting مؤجّل.
+- **قائمة الرسائل غير مُvirtualized** — مقبول لـAlpha.
+- **علامة "متصل" للمستخدم نفسه** تظهر لحظيًا "غير متصل" قبل اتصال الـWebSocket ثم تتحول إلى "متصل الآن" — تجميلي.
+- **تعليم القراءة التفاؤلي للرسائل الذاتية** عند فتح المحادثة (في `useMarkConversationRead`) — سلوك تفاؤلي قائم، يُصحَّح فعليًا بحدث `read` من الخادم.
+- **لا اختبارات E2E (Playwright) بعد** — التدفقات مغطّاة بـ76 اختبار backend + 71 اختبار frontend + تحقق حيّ ويدوي.

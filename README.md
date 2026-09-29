@@ -2,20 +2,26 @@
 
 A real-time chat application. Two-person build: one Backend/Infrastructure developer, one Frontend/UI developer.
 
-**Status: Pre-Alpha — Phase 0 (Foundation).**
-The frontend runs. The backend is a health-check-only scaffold. Nothing here is production-ready yet.
+**Status: Alpha v0.0.1.**
+The frontend runs and the backend implements the full Alpha API: authentication, users,
+conversations, messaging, and realtime (WebSocket) — all matching `docs/api-contract.md`.
+Verified by automated tests on both workspaces and a live end-to-end run. Not yet
+production-hardened (see the Post-Alpha notes in `plan.md`).
 
-## What Phase 0 delivers
+## What Alpha v0.0.1 delivers
 
-- Working React frontend (unchanged in this phase).
-- Node / Express / TypeScript backend skeleton with `/health`.
-- Prisma schema with the five foundational models (`User`, `Conversation`, `ConversationMember`, `Message`, `Session`) — no business logic yet.
-- Root monorepo scripts for both workspaces.
-- GitHub Actions for both workspaces.
-- PR and issue templates.
-- Documentation: architecture, development, git workflow, API contract, UI plan.
+- Working React frontend.
+- Node / Express / TypeScript backend implementing every endpoint in `docs/api-contract.md`:
+  - **Auth** — register, login (username or email), refresh with rotation + reuse detection, logout, forgot/reset password.
+  - **Users** — `me`, search (email never exposed), get by id, profile update.
+  - **Conversations** — idempotent direct conversations, list, message history (cursor pagination), read receipts.
+  - **Messaging** — idempotent send on `(conversationId, senderId, clientId)`.
+  - **Realtime** — raw-JSON WebSocket: auth handshake, ping/pong, `message:new`, typing, presence (ref-counted), read receipts.
+- A storage abstraction with a Prisma/PostgreSQL implementation (runtime) and an in-memory implementation (`STORE=memory`) used by the test suite and offline demos.
+- Prisma schema (`User`, `Conversation`, `ConversationMember`, `Message`, `Session`, `PasswordResetToken`).
+- Root monorepo scripts, GitHub Actions, PR/issue templates, and full documentation.
 
-Explicitly **not** in Phase 0: authentication logic, message send/read, WebSocket handlers, groups, uploads, calls, AI, notifications. These land in Alpha v0.0.1.
+Explicitly **out of scope** (see `plan.md` → Post-Alpha): groups, uploads, calls, AI, push notifications, email delivery, message editing/deletion.
 
 ## Architecture
 
@@ -136,9 +142,9 @@ Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 
 ## Roadmap
 
-- **Phase 0 — Foundation (this).** Scaffolding, docs, CI, contract.
-- **Alpha v0.0.1.** Authentication → users → conversations → messages → realtime. First working E2E flow.
-- **Post-Alpha.** Groups, file upload, presence for group chats, avatars, message editing/deletion.
+- **Phase 0 — Foundation.** Scaffolding, docs, CI, contract.
+- **Alpha v0.0.1 (this).** Authentication → users → conversations → messages → realtime. First working E2E flow.
+- **Post-Alpha.** Email delivery, production token storage, deployment/TLS/scaling, groups, file upload, avatars, message editing/deletion.
 - **Later.** Voice messages, video calls, AI features, notifications.
 
 ## Documentation

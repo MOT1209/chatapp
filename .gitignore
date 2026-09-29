@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+# Local npm cache used for offline installs in this workspace
+.npm-cache/
 
 # Build output
 dist/
