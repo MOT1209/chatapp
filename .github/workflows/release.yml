@@ -1,0 +1,219 @@
+name: release
+
+# Builds the downloadable clients: Web, Android APK and Windows desktop.
+#   - push a `v*` tag  -> build all three and attach them to a DRAFT GitHub Release
+#   - manual dispatch  -> build and upload workflow artifacts only (dry run, no release)
+# macOS, Linux and iOS are intentionally not built here yet.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'Backend REST URL baked into the build (default: repo variable API_URL)'
+        required: false
+      ws_url:
+        description: 'Backend WebSocket URL baked into the build (default: repo variable WS_URL)'
+        required: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.47.5
+  API_URL: ${{ inputs.api_url || vars.API_URL }}
+  WS_URL: ${{ inputs.ws_url || vars.WS_URL }}
+
+jobs:
+  # Resolves the version once so every artifact is named consistently.
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      name: ${{ steps.v.outputs.name }}
+      number: ${{ steps.v.outputs.number }}
+      localhost: ${{ steps.v.outputs.localhost }}
+    steps:
+      - id: v
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="dev-${GITHUB_SHA::7}"
+          fi
+          # v0.0.2-beta -> 0.0.2 (Flutter build-name must be numeric x.y.z)
+          base="${tag#v}"; base="${base%%-*}"
+          if [[ ! "$base" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then base="0.0.0"; fi
+          localhost="true"
+          url_re='^(https?|wss?)://[A-Za-z0-9._~:/?#@%&=+,-]+$'
+          for u in "$API_URL" "$WS_URL"; do
+            if [[ -n "$u" && ! "$u" =~ $url_re ]]; then
+              echo "::error::Invalid backend URL (must be http(s):// or ws(s):// with no spaces or quotes)."; exit 1
+            fi
+          done
+          if [[ -n "$API_URL" ]]; then localhost="false"; fi
+          {
+            echo "tag=$tag"
+            echo "name=$base"
+            echo "number=$GITHUB_RUN_NUMBER"
+            echo "localhost=$localhost"
+          } >> "$GITHUB_OUTPUT"
+          if [[ "$localhost" == "true" ]]; then
+            echo "::warning::API_URL is not set: these builds point at localhost and cannot reach any server."
+          fi
+
+  web:
+    needs: meta
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.meta.outputs.tag }}
+      BUILD_NAME: ${{ needs.meta.outputs.name }}
+      BUILD_NUMBER: ${{ needs.meta.outputs.number }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Dart defines
+        shell: bash
+        run: |
+          # URLs were validated in the meta job; written to a file so no shell quoting is involved.
+          printf '{"API_URL":"%s","WS_URL":"%s"}\n' "${API_URL:-http://localhost:4000}" "${WS_URL:-ws://localhost:4000/ws}" > defines.json
+      - name: Build web
+        shell: bash
+        run: flutter build web --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --dart-define-from-file=defines.json
+      - name: Package
+        run: |
+          mkdir -p ../dist
+          (cd build/web && zip -qr "../../../dist/chatapp-web-$TAG.zip" .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: dist/*
+          if-no-files-found: error
+
+  android:
+    needs: meta
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.meta.outputs.tag }}
+      BUILD_NAME: ${{ needs.meta.outputs.name }}
+      BUILD_NUMBER: ${{ needs.meta.outputs.number }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Dart defines
+        shell: bash
+        run: |
+          # URLs were validated in the meta job; written to a file so no shell quoting is involved.
+          printf '{"API_URL":"%s","WS_URL":"%s"}\n' "${API_URL:-http://localhost:4000}" "${WS_URL:-ws://localhost:4000/ws}" > defines.json
+      - name: Build APK
+        shell: bash
+        run: flutter build apk --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --dart-define-from-file=defines.json
+      - name: Package
+        run: |
+          mkdir -p ../dist
+          cp build/app/outputs/flutter-apk/app-release.apk "../dist/chatapp-android-$TAG.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    needs: meta
+    runs-on: windows-latest
+    env:
+      TAG: ${{ needs.meta.outputs.tag }}
+      BUILD_NAME: ${{ needs.meta.outputs.name }}
+      BUILD_NUMBER: ${{ needs.meta.outputs.number }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Dart defines
+        shell: bash
+        run: |
+          # URLs were validated in the meta job; written to a file so no shell quoting is involved.
+          printf '{"API_URL":"%s","WS_URL":"%s"}\n' "${API_URL:-http://localhost:4000}" "${WS_URL:-ws://localhost:4000/ws}" > defines.json
+      - name: Build Windows
+        shell: bash
+        run: flutter build windows --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --dart-define-from-file=defines.json
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ../dist | Out-Null
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "../dist/chatapp-windows-x64-$env:TAG.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+
+  # Only on a tag push. Creates a DRAFT: nothing is public until a person publishes it.
+  release:
+    if: github.ref_type == 'tag'
+    needs: [meta, web, android, windows]
+    runs-on: ubuntu-latest
+    env:
+      LOCALHOST: ${{ needs.meta.outputs.localhost }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums and notes
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          {
+            echo "Web, Android (APK) and Windows (x64) builds. macOS, Linux and iOS are not included."
+            echo
+            echo "- **Android APK** is signed with a CI debug key: install by sideloading; it cannot be updated in place and is not Play Store ready."
+            echo "- **Windows** is an unsigned portable zip (SmartScreen will warn). Unzip and run \`chat_app.exe\`."
+            echo "- **Web** is a static bundle; host it yourself."
+            echo "- Builds compile-checked only; not tested on real devices."
+            if [[ "$LOCALHOST" == "true" ]]; then
+              echo "- **Backend URL was not configured**: these builds point at \`localhost\`."
+            fi
+          } > ../notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: dist/*
+          body_path: notes.md
+          fail_on_unmatched_files: true

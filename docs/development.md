@@ -132,3 +132,18 @@ dart format --set-exit-if-changed lib test && flutter analyze && flutter test
 ```
 
 CI runs the same set. If it fails locally, it will fail there.
+
+## Releases (Web, Android APK, Windows)
+
+`.github/workflows/release.yml` builds the downloadable clients. macOS, Linux and iOS are **not** built yet.
+
+| Artifact | File |
+| --- | --- |
+| Web | `chatapp-web-<tag>.zip` (static bundle) |
+| Android | `chatapp-android-<tag>.apk` |
+| Windows | `chatapp-windows-x64-<tag>.zip` (unzip, run `chat_app.exe`) |
+
+- **Dry run (no release):** Actions → *release* → *Run workflow*. Optionally pass `api_url` / `ws_url`. Artifacts are attached to the run.
+- **Real release:** push a tag such as `v0.0.2-beta`. The workflow creates a **draft** GitHub Release with the three files and `SHA256SUMS.txt`; a person must click *Publish*. Tags containing `-` are marked pre-release.
+- **Backend URL:** set repository variables `API_URL` (e.g. `https://api.example.com`) and `WS_URL` (e.g. `wss://api.example.com/ws`). Without them the builds point at `localhost` (the workflow warns and says so in the release notes). There is no deployed backend yet.
+- **Limitations:** the APK is signed with a CI debug key (sideload only; cannot be updated in place; not Play Store ready). The Windows build is unsigned (SmartScreen warns) and is a portable zip, not an installer. Builds are compile-checked only, not tested on real devices.
