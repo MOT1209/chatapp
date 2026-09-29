@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   avatarHue,
@@ -19,8 +19,18 @@ describe("formatTime", () => {
 });
 
 describe("formatDayDivider", () => {
-  // Pinned so the test does not roll over at midnight mid-run.
+  // Pinned so the test does not roll over at midnight mid-run. The system clock is
+  // frozen to this instant, because formatDayDivider compares against the real "now".
   const now = new Date("2026-09-28T12:00:00.000Z");
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("labels today in Arabic", () => {
     const today = new Date(now);
