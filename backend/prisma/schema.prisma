@@ -23,22 +23,24 @@ model User {
   updatedAt    DateTime  @updatedAt
 
   memberships         ConversationMember[]
-  messages             Message[]
-  sessions              Session[]
-  passwordResetTokens   PasswordResetToken[]
+  messages            Message[]
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
 
-  @@index([email])
-  @@index([username])
+  // No separate @@index([email]) / @@index([username]): the @unique above
+  // already creates a B-tree index on each column, which Postgres uses for
+  // equality lookups the same way a plain index would. A second index on the
+  // same single column would only cost write overhead for no lookup benefit.
 }
 
 model Conversation {
-  id         String   @id @default(cuid())
-  type       String   @default("direct") // "direct" only in v1; "group" reserved
+  id        String   @id @default(cuid())
+  type      String   @default("direct") // "direct" only in v1; "group" reserved
   // Deterministic key for a 1:1 conversation: the two member ids sorted and joined.
   // Guarantees POST /api/conversations is idempotent at the database level.
-  directKey  String?  @unique
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @default(now())
+  directKey String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 
   members  ConversationMember[]
   messages Message[]
@@ -47,10 +49,10 @@ model Conversation {
 }
 
 model ConversationMember {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   conversationId String
   userId         String
-  joinedAt       DateTime  @default(now())
+  joinedAt       DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
