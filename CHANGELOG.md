@@ -30,6 +30,7 @@ All notable changes to ChatApp are documented here.
 
 ### Added
 
+- `.github/workflows/release.yml`: builds Web, Android APK and Windows zip; a `v*` tag creates a draft GitHub Release. macOS/Linux/iOS deferred. See `docs/development.md` → Releases.
 - `docs/DEVELOPMENT_AUDIT.md` — Phase 0 audit and its status table.
 
 ### Stabilization pass (prepared for v0.0.2-beta)
