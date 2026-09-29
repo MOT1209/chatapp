@@ -111,6 +111,20 @@ describe('PATCH /api/users/me', () => {
     expect(res.body.avatarUrl).toBe('https://example.com/a.png');
   });
 
+  it.each(['javascript:alert(1)', 'data:text/html;base64,PHNjcmlwdD4=', 'file:///etc/passwd', 'ftp://example.com/a.png'])(
+    'rejects a non-http(s) avatarUrl (%s)',
+    async (avatarUrl) => {
+      const { accessToken } = await registerUser(app);
+      const res = await request(app)
+        .patch('/api/users/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ avatarUrl });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(res.body.error.fields.avatarUrl).toBeDefined();
+    },
+  );
+
   it('clears avatarUrl with null', async () => {
     const me = await registerUser(app);
     await request(app)

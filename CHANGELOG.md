@@ -2,6 +2,36 @@
 
 All notable changes to ChatApp are documented here.
 
+## Unreleased
+
+### Fixed
+
+- **Logout after the access token expired left the session alive.** The
+  refresh token could still be used afterwards. `POST /api/auth/logout` now
+  also accepts an optional `{ "refreshToken" }` body (additive; no body still
+  works) and the Flutter client sends it. (audit F-01)
+- **Passwords are limited in bytes, not characters.** bcrypt ignores everything
+  after byte 72, so a 40-letter Arabic password was silently truncated. Register
+  and reset now reject more than 72 bytes with a `VALIDATION_ERROR`. Existing
+  accounts are unaffected: login does not apply the limit. (audit F-11)
+- `avatarUrl` accepts only `http(s)` URLs, as the contract already stated;
+  `javascript:`, `data:` and `file:` were accepted before. (audit F-09)
+- A message cursor holding an unparseable date returns `400 VALIDATION_ERROR`
+  instead of `500`. (audit F-08)
+
+- Merged earlier in [#12](https://github.com/MOT1209/chatapp/pull/12) (listed here
+  because it was not in this file): atomic refresh rotation that revokes every
+  session when a rotated-out token is replayed; concurrent sends with one
+  `clientId` return the original message instead of `500`; equal-cost password
+  check for unknown accounts; `%`/`_` no longer act as wildcards in user
+  search; the newest password-reset link supersedes older ones; WebSocket
+  protocol heartbeat, per-socket frame budget, presence reset on boot and
+  graceful shutdown; JWT algorithm pinned to HS256; credentialed CORS removed.
+
+### Added
+
+- `docs/DEVELOPMENT_AUDIT.md` — Phase 0 audit and its status table.
+
 ## v0.0.1-alpha
 
 First end-to-end release: two real accounts can register, find each other,
