@@ -48,6 +48,26 @@ Builds made before this point talk to `localhost` and must not be published.
   start; safe because there is one instance.
 - Production refuses to boot with weak or identical JWT secrets (`backend/src/config/env.ts`).
 
+## Troubleshooting
+
+**Build log shows `Running build command 'yarn install; yarn build'` and
+`error TS2688: Cannot find type definition file for 'node'`.**
+The service was created by hand (New -> Web Service) instead of from the Blueprint, so
+`render.yaml` was ignored and Render built the repository *root* with its defaults. Root
+`yarn build` also tries to build the Flutter app, which cannot work on Render. Fix, either:
+
+- Delete the service and create it via **New -> Blueprint** (recommended), or
+- Edit the service settings: **Root Directory** `backend`; **Build Command**
+  `npm ci --include=dev && npx prisma generate && npm run build`; **Start Command**
+  `npx prisma migrate deploy && node dist/server.js`; **Health Check Path** `/health`;
+  environment `NODE_VERSION=22`, `NODE_ENV=production`, `DATABASE_URL` (the database's
+  internal connection string), `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` (each at least
+  32 random characters and different from each other, e.g. `openssl rand -base64 48`).
+
+**Render uses a very new Node (the log said 26.x).** `package.json` only requires `>=20`, so
+Render picks the newest. The project is tested on Node 22 (CI); set `NODE_VERSION=22`
+(already in `render.yaml`).
+
 ## Known limits
 
 - **Single instance only.** The realtime hub is in-memory; more than one instance breaks message

@@ -4,6 +4,10 @@ All notable changes to ChatApp are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- `render.yaml` pins `NODE_VERSION=22`; `docs/deployment.md` documents the failure seen when a Render service is created by hand instead of from the Blueprint.
+
 ### Added
 
 - `render.yaml` and `docs/deployment.md`: Render Blueprint for the backend + PostgreSQL (validated locally in production mode; not yet deployed to a live account).
