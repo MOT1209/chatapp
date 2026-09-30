@@ -64,6 +64,16 @@ The service was created by hand (New -> Web Service) instead of from the Bluepri
   internal connection string), `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` (each at least
   32 random characters and different from each other, e.g. `openssl rand -base64 48`).
 
+**Deploy log shows `P1001: Can't reach database server at dpg-...-a:5432` although the build succeeded.**
+`dpg-...-a` is Render's *internal* database hostname and only resolves inside the database's own
+region. The usual cause is a second service created by hand (New -> Web Service): its default
+region can differ from the Blueprint's, so it cannot reach the Blueprint's database. Check the
+service's **Region** against the database's. Keep the Blueprint-created `chatapp-api` and delete the
+stray service. Do not create a second service for the same repository. `render.yaml` sets no region,
+so Blueprint resources use Render's default region (Oregon when this was written); if you want another
+region, set `region:` on both the database and the service before the first deploy, because a
+database cannot be moved.
+
 **Render uses a very new Node (the log said 26.x).** `package.json` only requires `>=20`, so
 Render picks the newest. The project is tested on Node 22 (CI); set `NODE_VERSION=22`
 (already in `render.yaml`).
@@ -72,6 +82,7 @@ Render picks the newest. The project is tested on Node 22 (CI); set `NODE_VERSIO
 
 - **Single instance only.** The realtime hub is in-memory; more than one instance breaks message
   push, typing and presence. See [architecture](./architecture.md).
+- **Free web services sleep (observed).** An idle free `chatapp-api` received SIGTERM about 15 minutes after its last request; the next request wakes it and drops any open WebSocket.
 - **Plan limits (check Render's current terms, they change).** The Blueprint uses `plan: free`
   for both resources. Free web services typically sleep when idle: the first request is slow and
   every WebSocket connection is dropped. Free databases may be time-limited. Use paid plans for
