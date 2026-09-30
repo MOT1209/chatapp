@@ -147,3 +147,4 @@ CI runs the same set. If it fails locally, it will fail there.
 - **Real release:** push a tag such as `v0.0.2-beta`. The workflow creates a **draft** GitHub Release with the three files and `SHA256SUMS.txt`; a person must click *Publish*. Tags containing `-` are marked pre-release.
 - **Backend URL:** set repository variables `API_URL` (e.g. `https://api.example.com`) and `WS_URL` (e.g. `wss://api.example.com/ws`). Without them the builds point at `localhost` (the workflow warns and says so in the release notes). There is no deployed backend yet.
 - **Limitations:** the APK is signed with a CI debug key (sideload only; cannot be updated in place; not Play Store ready). The Windows build is unsigned (SmartScreen warns) and is a portable zip, not an installer. Builds are compile-checked only, not tested on real devices.
+- **Backend hosting:** see [deployment.md](./deployment.md) (Render Blueprint) for the `API_URL` / `WS_URL` values.
