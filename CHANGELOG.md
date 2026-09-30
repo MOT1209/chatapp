@@ -4,6 +4,12 @@ All notable changes to ChatApp are documented here.
 
 ## Unreleased
 
+## v0.0.2-beta — 2026-09-30
+
+Stabilization release after `v0.0.1-alpha` (which is unchanged). Web, Android APK and
+Windows builds are produced by `.github/workflows/release.yml`. See the sections below
+for details, and `docs/development.md` → Releases for the build limitations.
+
 ### Fixed
 
 - **A WebSocket no longer outlives its credentials.** The server closes it with `4401` when the access token used to authenticate expires, and on logout or password reset. The Flutter client already refreshes and reconnects on `4401`. (audit F-05)
@@ -137,4 +143,5 @@ and `docs/api-contract.md` §6 for the full list of deliberate gaps.
 - Realtime presence/typing state is in-memory and per-process — correct
   for a single backend instance, not yet designed for horizontal scaling.
 
-[Unreleased]: https://github.com/MOT1209/chatapp/compare/v0.0.1-alpha...HEAD
+[Unreleased]: https://github.com/MOT1209/chatapp/compare/v0.0.2-beta...HEAD
+[v0.0.2-beta]: https://github.com/MOT1209/chatapp/compare/v0.0.1-alpha...v0.0.2-beta
