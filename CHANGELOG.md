@@ -4,6 +4,10 @@ All notable changes to ChatApp are documented here.
 
 ## Unreleased
 
+### Added
+
+- `render.yaml` and `docs/deployment.md`: Render Blueprint for the backend + PostgreSQL (validated locally in production mode; not yet deployed to a live account).
+
 ## v0.0.2-beta — 2026-09-30
 
 Stabilization release after `v0.0.1-alpha` (which is unchanged). Web, Android APK and
