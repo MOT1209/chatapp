@@ -1,7 +1,7 @@
 {
   "name": "chatapp",
   "private": true,
-  "version": "0.0.1-alpha",
+  "version": "0.0.2-beta",
   "description": "ChatApp monorepo — Flutter client (app/) + Node/Express/Prisma backend (backend/)",
   "scripts": {
     "install:all": "npm install && npm install --prefix backend && cd app && flutter pub get",

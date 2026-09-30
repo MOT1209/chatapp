@@ -1,5 +1,5 @@
 name: chat_app
-description: "Chat App — Alpha v0.0.1 cross-platform client"
+description: "Chat App — v0.0.2-beta cross-platform client"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

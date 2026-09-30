@@ -2,7 +2,7 @@
 
 A real-time chat application. Two-person build: one Backend/Infrastructure developer, one Frontend/UI developer.
 
-**Status: Alpha v0.0.1.** Not production-ready — no deployment infrastructure, no
+**Status: v0.0.2-beta (stabilization of Alpha v0.0.1).** Not production-ready — no deployment infrastructure, no
 email delivery, no load testing. It is the first version where a full
 register → search → chat → realtime flow actually works end to end.
 
