@@ -81,7 +81,11 @@ class FakeBackend {
     }
   }
 
+  /// While true, new WebSocket connections fail (offline, or the server is down).
+  bool refuseConnections = false;
+
   SocketConnection connect(Uri _) {
+    if (refuseConnections) throw const SocketRefused();
     final socket = FakeSocket(this);
     sockets.add(socket);
     return socket;
@@ -226,6 +230,10 @@ class _Conv {
   final String a;
   final String b;
   final messages = <Map<String, dynamic>>[];
+}
+
+class SocketRefused implements Exception {
+  const SocketRefused();
 }
 
 class FakeSocket implements SocketConnection {

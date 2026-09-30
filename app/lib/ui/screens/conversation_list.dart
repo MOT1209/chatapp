@@ -5,12 +5,12 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/chat_api.dart';
-import '../../core/realtime_client.dart';
 import '../../models/conversation.dart';
 import '../../models/user.dart';
 import '../../state/conversations_controller.dart';
 import '../format.dart';
 import '../l10n.dart';
+import '../widgets/connection_banner.dart';
 import '../widgets/state_views.dart';
 import '../widgets/user_avatar.dart';
 
@@ -109,10 +109,10 @@ class _ConversationListState extends State<ConversationList> {
               Expanded(
                 child: Semantics(header: true, child: Text(l.appTitle, style: theme.textTheme.titleLarge)),
               ),
-              const _ConnectionBadge(),
             ],
           ),
         ),
+        const ConnectionBanner(),
         Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
           child: TextField(
@@ -280,26 +280,6 @@ class _ConversationTile extends StatelessWidget {
         ],
       ),
       onTap: onTap,
-    );
-  }
-}
-
-class _ConnectionBadge extends StatelessWidget {
-  const _ConnectionBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final status = context.watch<RealtimeClient>().status;
-    if (status == RealtimeStatus.connected) return const SizedBox.shrink();
-    final scheme = Theme.of(context).colorScheme;
-    final l = context.l10n;
-    return Semantics(
-      liveRegion: true,
-      child: Chip(
-        visualDensity: VisualDensity.compact,
-        avatar: Icon(Icons.cloud_off, size: 16, color: scheme.onSurfaceVariant),
-        label: Text(status == RealtimeStatus.connecting ? l.connecting : l.offline),
-      ),
     );
   }
 }

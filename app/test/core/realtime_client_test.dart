@@ -94,4 +94,47 @@ void main() {
       expect(ms, inInclusiveRange(base, base * 1.25 + 1));
     }
   });
+
+  group('phase', () {
+    test('connecting until ready, then connected; idle after disconnect', () async {
+      final client = build();
+      expect(client.phase, ConnectionPhase.idle);
+      client.connect();
+      expect(client.phase, ConnectionPhase.connecting);
+      await settle();
+      expect(client.phase, ConnectionPhase.connected);
+      client.disconnect();
+      expect(client.phase, ConnectionPhase.idle);
+      client.dispose();
+    });
+
+    test('a drop is "reconnecting"; repeated failures become "lost"; recovery is "connected"', () async {
+      final client = build()..connect();
+      await settle();
+      final phases = <ConnectionPhase>[];
+      client.addListener(() => phases.add(client.phase));
+
+      backend.refuseConnections = true;
+      backend.sockets.single.serverClose(1006);
+      await settle();
+      expect(phases.first, ConnectionPhase.reconnecting);
+      expect(client.phase, ConnectionPhase.lost);
+
+      backend.refuseConnections = false;
+      await settle();
+      expect(client.phase, ConnectionPhase.connected);
+      client.dispose();
+    });
+
+    test('a first connection that keeps failing is "lost", not "reconnecting"', () async {
+      backend.refuseConnections = true;
+      final client = build()..connect();
+      final phases = <ConnectionPhase>{};
+      client.addListener(() => phases.add(client.phase));
+      await settle();
+      expect(client.phase, ConnectionPhase.lost);
+      expect(phases, isNot(contains(ConnectionPhase.reconnecting)));
+      client.dispose();
+    });
+  });
 }

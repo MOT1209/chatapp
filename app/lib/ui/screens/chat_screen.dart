@@ -15,6 +15,7 @@ import '../../state/conversations_controller.dart';
 import '../../state/session_controller.dart';
 import '../format.dart';
 import '../l10n.dart';
+import '../widgets/connection_banner.dart';
 import '../widgets/state_views.dart';
 import '../widgets/user_avatar.dart';
 
@@ -128,6 +129,8 @@ class _ChatScreenState extends State<ChatScreen> {
             top: false,
             child: Column(
               children: [
+                // On wide layouts the conversation list next to the chat already shows it.
+                if (widget.onBack != null) const ConnectionBanner(),
                 Expanded(child: _messages(context)),
                 _Composer(onSend: _chat.send, onComposing: _chat.onComposing),
               ],

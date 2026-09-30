@@ -20,6 +20,7 @@ Future<void> pumpApp(
   Size size = phone,
   Tokens? storedTokens,
   String locale = 'en',
+  Duration backoff = Duration.zero,
 }) async {
   tester.view
     ..devicePixelRatio = 1
@@ -39,7 +40,7 @@ Future<void> pumpApp(
         tokens: tokens,
         refreshTokens: client.refreshTokens,
         connector: backend.connect,
-        backoff: (_) => Duration.zero,
+        backoff: (_) => backoff,
       ),
       settings: SettingsController(prefs),
     ),

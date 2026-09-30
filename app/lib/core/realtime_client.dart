@@ -40,6 +40,22 @@ class WebSocketConnection implements SocketConnection {
 
 enum RealtimeStatus { disconnected, connecting, connected }
 
+/// What the user should be told about the connection (see `ConnectionBanner`).
+enum ConnectionPhase {
+  /// Not running (signed out).
+  idle,
+
+  /// First connection since sign-in.
+  connecting,
+
+  /// Was connected, dropped, retrying.
+  reconnecting,
+
+  /// Several attempts in a row failed: offline or the server is unreachable.
+  lost,
+  connected,
+}
+
 /// Raw-WebSocket client for contract §4. It only emits frames; controllers
 /// decide what they mean, and REST stays the source of truth (§4.6).
 class RealtimeClient extends ChangeNotifier {
@@ -55,6 +71,9 @@ class RealtimeClient extends ChangeNotifier {
 
   static const _unauthorizedCloseCode = 4401;
   static const _maxMissedPongs = 2;
+
+  /// Failed attempts in a row before the UI says the connection is lost.
+  static const lostAfterAttempts = 3;
 
   final Uri url;
   final TokenStorage tokens;
@@ -77,6 +96,14 @@ class RealtimeClient extends ChangeNotifier {
   int _missedPongs = 0;
   bool _shouldRun = false;
   bool _authRejected = false;
+  bool _everConnected = false;
+
+  ConnectionPhase get phase {
+    if (!_shouldRun) return ConnectionPhase.idle;
+    if (_status == RealtimeStatus.connected) return ConnectionPhase.connected;
+    if (_attempt >= lostAfterAttempts) return ConnectionPhase.lost;
+    return _everConnected ? ConnectionPhase.reconnecting : ConnectionPhase.connecting;
+  }
 
   /// 1s → 2s → 4s → 8s → 15s cap, with up to 25% jitter (contract §4.1).
   static Duration defaultBackoff(int attempt) {
@@ -100,6 +127,8 @@ class RealtimeClient extends ChangeNotifier {
 
   void disconnect() {
     _shouldRun = false;
+    _everConnected = false;
+    _attempt = 0;
     _reconnectTimer?.cancel();
     _teardown();
     _setStatus(RealtimeStatus.disconnected);
@@ -168,6 +197,7 @@ class RealtimeClient extends ChangeNotifier {
         return;
       case 'ready':
         _attempt = 0;
+        _everConnected = true;
         _setStatus(RealtimeStatus.connected);
       case 'error':
         final code = frame.payload['code'];
@@ -214,6 +244,8 @@ class RealtimeClient extends ChangeNotifier {
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(_backoff(_attempt), () => unawaited(_open()));
     _attempt++;
+    // The phase may move to `lost` without a status change.
+    if (_attempt == lostAfterAttempts) notifyListeners();
   }
 
   /// Sends a client frame when connected. Transient frames (typing, read) are

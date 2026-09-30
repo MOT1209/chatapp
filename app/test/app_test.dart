@@ -358,6 +358,60 @@ void main() {
     });
   });
 
+  group('Connection banner', () {
+    testWidgets('shows lost, retries on demand, then confirms "Connected" and hides', (tester) async {
+      await pumpApp(
+        tester,
+        backend,
+        storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'),
+        backoff: const Duration(seconds: 1),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byKey(const Key('connection.banner')), findsNothing);
+
+      backend.refuseConnections = true;
+      backend.sockets.last.serverClose(1006);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Reconnecting…'), findsOneWidget);
+
+      for (var i = 0; i < 3; i++) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+      expect(find.text('No connection. Retrying…'), findsOneWidget);
+
+      backend.refuseConnections = false;
+      await tester.tap(find.text('Retry now'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text('Connected'), findsOneWidget);
+      // The list is re-fetched from REST after reconnecting.
+      expect(find.text('Sara'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.byKey(const Key('connection.banner')), findsNothing);
+      await unmount(tester);
+    });
+
+    testWidgets('a full-screen chat on a phone shows the banner too', (tester) async {
+      await pumpApp(
+        tester,
+        backend,
+        storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'),
+        backoff: const Duration(seconds: 1),
+      );
+      await tester.tap(find.text('Sara'));
+      await tester.pumpAndSettle();
+      backend.refuseConnections = true;
+      backend.sockets.last.serverClose(1006);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Reconnecting…'), findsOneWidget);
+      await unmount(tester);
+    });
+  });
+
   group('German', () {
     testWidgets('login and home render in German', (tester) async {
       await pumpApp(tester, backend, locale: 'de');
