@@ -317,4 +317,61 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get urlTooLong => 'URL is too long';
+
+  @override
+  String get somethingWentWrongRetry => 'Something went wrong. Please try again.';
+
+  @override
+  String get errorInvalidCredentials => 'Incorrect username or password.';
+
+  @override
+  String get errorRateLimited => 'Too many attempts. Please wait a moment and try again.';
+
+  @override
+  String get errorConflict => 'Username or email is already in use.';
+
+  @override
+  String get errorNotFound => 'This item no longer exists.';
+
+  @override
+  String get errorForbidden => 'You are not allowed to do this.';
+
+  @override
+  String get errorValidation => 'Some details are not valid. Check them and try again.';
+
+  @override
+  String get errorSessionExpired => 'Your session has ended. Please sign in again.';
+
+  @override
+  String get errorServerUnavailable => 'The server is unavailable right now. Please try again shortly.';
+
+  @override
+  String get errorResetCodeInvalid => 'This reset code is invalid or has expired.';
+
+  @override
+  String get usernameTaken => 'This username is already taken.';
+
+  @override
+  String get emailTaken => 'This email is already registered.';
+
+  @override
+  String get fieldInvalid => 'Check this field.';
+
+  @override
+  String get reconnecting => 'Reconnecting…';
+
+  @override
+  String get connectionLost => 'No connection. Retrying…';
+
+  @override
+  String get connected => 'Connected';
+
+  @override
+  String get retryNow => 'Retry now';
+
+  @override
+  String get rememberMe => 'Keep me signed in';
+
+  @override
+  String get newChat => 'New chat';
 }

@@ -9,5 +9,31 @@ extension L10nContext on BuildContext {
   AppLocalizations get l10n => AppLocalizations.of(this);
 }
 
-/// Client-side failures are localized. Server messages are shown verbatim (contract §1.1).
-String errorMessage(AppLocalizations l, ApiException e) => e.isNetwork ? l.networkError : e.message;
+/// Maps an [ApiException] to a localized, non-technical message by its contract
+/// error code (§1.2). Server `message` text is English and never shown directly.
+String errorMessage(AppLocalizations l, ApiException e) => switch (e.code) {
+  ApiException.networkError => l.networkError,
+  'INVALID_CREDENTIALS' => l.errorInvalidCredentials,
+  'RATE_LIMITED' => l.errorRateLimited,
+  'CONFLICT' => l.errorConflict,
+  'NOT_FOUND' => l.errorNotFound,
+  'FORBIDDEN' => l.errorForbidden,
+  'VALIDATION_ERROR' when e.fields.containsKey('token') => l.errorResetCodeInvalid,
+  'VALIDATION_ERROR' => l.errorValidation,
+  'UNAUTHENTICATED' || 'TOKEN_EXPIRED' => l.errorSessionExpired,
+  // 502/503/504 come from a proxy in front of a sleeping or restarting server.
+  _ when e.statusCode >= 502 && e.statusCode <= 504 => l.errorServerUnavailable,
+  _ => l.somethingWentWrongRetry,
+};
+
+/// Localized per-field hints for a form. Known server field errors get a specific
+/// message; any other field the server flagged gets a generic "check this field".
+Map<String, String> fieldErrors(AppLocalizations l, ApiException e) => {
+  for (final field in e.fields.keys)
+    field: switch ((e.code, field)) {
+      ('CONFLICT', 'username') => l.usernameTaken,
+      ('CONFLICT', 'email') => l.emailTaken,
+      (_, 'token') => l.errorResetCodeInvalid,
+      _ => l.fieldInvalid,
+    },
+};

@@ -84,17 +84,25 @@ class ProfileScreen extends StatelessWidget {
                     const Divider(height: 1),
                     _Setting(
                       label: l.language,
-                      child: SegmentedButton<String>(
+                      // Chips wrap on narrow phones, where four segments would not fit.
+                      child: Wrap(
                         key: const Key('profile.language'),
-                        showSelectedIcon: false,
-                        // Language names are shown in their own language so they're always findable.
-                        segments: [
-                          ButtonSegment(value: 'system', label: Text(l.languageSystem)),
-                          const ButtonSegment(value: 'ar', label: Text('العربية')),
-                          const ButtonSegment(value: 'en', label: Text('English')),
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          // Language names are shown in their own language so they're always findable.
+                          for (final (code, label) in [
+                            ('system', l.languageSystem),
+                            ('ar', 'العربية'),
+                            ('en', 'English'),
+                            ('de', 'Deutsch'),
+                          ])
+                            ChoiceChip(
+                              label: Text(label),
+                              selected: (settings.locale?.languageCode ?? 'system') == code,
+                              onSelected: (_) => settings.setLocale(code == 'system' ? null : Locale(code)),
+                            ),
                         ],
-                        selected: {settings.locale?.languageCode ?? 'system'},
-                        onSelectionChanged: (s) => settings.setLocale(s.first == 'system' ? null : Locale(s.first)),
                       ),
                     ),
                   ],
@@ -202,7 +210,7 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
       if (!mounted) return;
       setState(() {
         _error = errorMessage(context.l10n, e);
-        _fieldErrors = e.fields;
+        _fieldErrors = fieldErrors(context.l10n, e);
       });
     } finally {
       if (mounted) setState(() => _saving = false);

@@ -105,5 +105,27 @@
   "profileImageUrl": "رابط صورة الملف الشخصي",
   "profileImageHint": "اتركه فارغًا لاستخدام الأحرف الأولى من اسمك",
   "enterValidUrl": "أدخل رابطًا يبدأ بـ http(s)",
-  "urlTooLong": "الرابط طويل جدًا"
+  "urlTooLong": "الرابط طويل جدًا",
+
+  "somethingWentWrongRetry": "حدث خطأ ما. حاول مرة أخرى.",
+  "errorInvalidCredentials": "اسم المستخدم أو كلمة المرور غير صحيحة.",
+  "errorRateLimited": "محاولات كثيرة جدًا. انتظر قليلًا ثم حاول مرة أخرى.",
+  "errorConflict": "اسم المستخدم أو البريد الإلكتروني مستخدم بالفعل.",
+  "errorNotFound": "هذا العنصر لم يعد موجودًا.",
+  "errorForbidden": "غير مسموح لك بهذا الإجراء.",
+  "errorValidation": "بعض البيانات غير صالحة. راجعها وحاول مرة أخرى.",
+  "errorSessionExpired": "انتهت جلستك. سجّل الدخول مرة أخرى.",
+  "errorServerUnavailable": "الخادم غير متاح حاليًا. حاول بعد قليل.",
+  "errorResetCodeInvalid": "رمز الاستعادة غير صالح أو منتهي الصلاحية.",
+  "usernameTaken": "اسم المستخدم هذا محجوز بالفعل.",
+  "emailTaken": "هذا البريد الإلكتروني مسجّل بالفعل.",
+  "fieldInvalid": "راجع هذا الحقل.",
+
+  "reconnecting": "جارٍ إعادة الاتصال…",
+  "connectionLost": "لا يوجد اتصال. جارٍ إعادة المحاولة…",
+  "connected": "تم الاتصال",
+  "retryNow": "أعد المحاولة الآن",
+
+  "rememberMe": "إبقائي مسجّلًا الدخول",
+  "newChat": "محادثة جديدة"
 }

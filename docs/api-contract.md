@@ -44,7 +44,7 @@ Every non-2xx response must use this exact envelope:
 | `message` | yes | Human-readable English string, safe to show to the user as a fallback |
 | `fields` | no | Object of `fieldName -> message`. Only present for validation errors (HTTP 400/422) |
 
-The frontend shows `fields` next to the matching form input, and falls back to `message` when `fields` is absent. **The frontend displays backend errors verbatim. It does not swallow or replace them.**
+The frontend shows `fields` next to the matching form input. Because `message` and `fields` values are English, the Flutter client translates them by `code` (and field name) into the UI language and never shows the raw text; an unknown `code` gets a generic "Something went wrong. Please try again." **The frontend never swallows an error: every failure is shown, localized.**
 
 ### 1.2 Error codes
 

@@ -42,11 +42,11 @@ Windows, macOS, Linux and Web. It talks to the backend only through
 
 ## Localization and accessibility
 
-- Arabic and English via `flutter_localizations` and ARB files in `app/lib/l10n/`. The app
+- Arabic, English and German via `flutter_localizations` and ARB files in `app/lib/l10n/`. The app
   follows the device language; Profile can override it. Arabic is fully right-to-left.
 - Noto Sans Arabic is bundled so Arabic renders without a font CDN on web.
-- Backend error messages are shown verbatim (contract §1.1), so they stay in English.
-  Client-side errors (network) are localized.
+- English, Arabic and German. Backend errors are mapped by `code` to localized messages
+  (`errorMessage` / `fieldErrors` in `lib/ui/l10n.dart`); raw server text is never shown.
 - Icon buttons have tooltips, headers are marked for screen readers, and status changes
   (typing, connection, errors) are live regions. Layout uses directional alignment.
 

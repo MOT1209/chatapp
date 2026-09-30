@@ -47,7 +47,7 @@ void main() {
       await unmount(tester);
     });
 
-    testWidgets('login shows the backend error verbatim', (tester) async {
+    testWidgets('login maps the backend error code to a localized message', (tester) async {
       await pumpApp(tester, backend);
       await login(tester, 'ahmad', 'wrong-password');
       expect(find.text('Incorrect username or password.'), findsOneWidget);
@@ -104,7 +104,10 @@ void main() {
       await tester.enterText(find.byKey(const Key('register.confirmPassword')), 'long-password');
       await tester.tap(find.widgetWithText(FilledButton, 'Register'));
       await tester.pumpAndSettle();
-      expect(find.text('Username is already taken.'), findsNWidgets(2));
+      expect(find.text('Username or email is already in use.'), findsOneWidget);
+      expect(find.text('This username is already taken.'), findsOneWidget);
+      // The server's English text never reaches the UI.
+      expect(find.text('Username is already taken.'), findsNothing);
       await unmount(tester);
     });
 
@@ -125,7 +128,8 @@ void main() {
       await tester.enterText(find.byKey(const Key('reset.confirm')), 'new-password');
       await tester.tap(find.widgetWithText(FilledButton, 'Set new password'));
       await tester.pumpAndSettle();
-      expect(find.text('Invalid code.'), findsOneWidget);
+      expect(find.text('This reset code is invalid or has expired.'), findsWidgets);
+      expect(find.text('Invalid code.'), findsNothing);
 
       await tester.enterText(find.byKey(const Key('reset.code')), FakeBackend.validResetCode);
       await tester.tap(find.widgetWithText(FilledButton, 'Set new password'));
@@ -349,6 +353,31 @@ void main() {
       expect(find.byType(ChatScreen), findsOneWidget);
       expect(find.byKey(const Key('home.search')), findsOneWidget);
       expect(find.byTooltip('Back'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await unmount(tester);
+    });
+  });
+
+  group('German', () {
+    testWidgets('login and home render in German', (tester) async {
+      await pumpApp(tester, backend, locale: 'de');
+      expect(find.text('Willkommen zurück'), findsOneWidget);
+      await login(tester, 'ahmad', 'wrong-password', button: 'Anmelden');
+      expect(find.text('Benutzername oder Passwort ist falsch.'), findsOneWidget);
+      await login(tester, 'ahmad', 'secret-pass', button: 'Anmelden');
+      expect(find.text('Chats'), findsWidgets);
+      expect(find.text('Profil'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await unmount(tester);
+    });
+
+    testWidgets('German can be picked from Profile', (tester) async {
+      await pumpApp(tester, backend, storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'));
+      await tester.tap(find.text('Profile'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Deutsch'));
+      await tester.pumpAndSettle();
+      expect(find.text('Abmelden'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await unmount(tester);
     });

@@ -317,4 +317,61 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get urlTooLong => 'الرابط طويل جدًا';
+
+  @override
+  String get somethingWentWrongRetry => 'حدث خطأ ما. حاول مرة أخرى.';
+
+  @override
+  String get errorInvalidCredentials => 'اسم المستخدم أو كلمة المرور غير صحيحة.';
+
+  @override
+  String get errorRateLimited => 'محاولات كثيرة جدًا. انتظر قليلًا ثم حاول مرة أخرى.';
+
+  @override
+  String get errorConflict => 'اسم المستخدم أو البريد الإلكتروني مستخدم بالفعل.';
+
+  @override
+  String get errorNotFound => 'هذا العنصر لم يعد موجودًا.';
+
+  @override
+  String get errorForbidden => 'غير مسموح لك بهذا الإجراء.';
+
+  @override
+  String get errorValidation => 'بعض البيانات غير صالحة. راجعها وحاول مرة أخرى.';
+
+  @override
+  String get errorSessionExpired => 'انتهت جلستك. سجّل الدخول مرة أخرى.';
+
+  @override
+  String get errorServerUnavailable => 'الخادم غير متاح حاليًا. حاول بعد قليل.';
+
+  @override
+  String get errorResetCodeInvalid => 'رمز الاستعادة غير صالح أو منتهي الصلاحية.';
+
+  @override
+  String get usernameTaken => 'اسم المستخدم هذا محجوز بالفعل.';
+
+  @override
+  String get emailTaken => 'هذا البريد الإلكتروني مسجّل بالفعل.';
+
+  @override
+  String get fieldInvalid => 'راجع هذا الحقل.';
+
+  @override
+  String get reconnecting => 'جارٍ إعادة الاتصال…';
+
+  @override
+  String get connectionLost => 'لا يوجد اتصال. جارٍ إعادة المحاولة…';
+
+  @override
+  String get connected => 'تم الاتصال';
+
+  @override
+  String get retryNow => 'أعد المحاولة الآن';
+
+  @override
+  String get rememberMe => 'إبقائي مسجّلًا الدخول';
+
+  @override
+  String get newChat => 'محادثة جديدة';
 }

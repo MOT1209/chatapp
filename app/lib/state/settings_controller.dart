@@ -12,7 +12,7 @@ class SettingsController extends ChangeNotifier {
 
   static const _themeKey = 'ui.themeMode';
   static const _localeKey = 'ui.locale';
-  static const supportedLocales = [Locale('ar'), Locale('en')];
+  static const supportedLocales = [Locale('ar'), Locale('en'), Locale('de')];
 
   final SharedPreferences _prefs;
 

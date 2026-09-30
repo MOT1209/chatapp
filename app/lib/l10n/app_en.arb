@@ -110,5 +110,27 @@
   "profileImageUrl": "Profile image URL",
   "profileImageHint": "Leave empty to use your initials",
   "enterValidUrl": "Enter an http(s) URL",
-  "urlTooLong": "URL is too long"
+  "urlTooLong": "URL is too long",
+
+  "somethingWentWrongRetry": "Something went wrong. Please try again.",
+  "errorInvalidCredentials": "Incorrect username or password.",
+  "errorRateLimited": "Too many attempts. Please wait a moment and try again.",
+  "errorConflict": "Username or email is already in use.",
+  "errorNotFound": "This item no longer exists.",
+  "errorForbidden": "You are not allowed to do this.",
+  "errorValidation": "Some details are not valid. Check them and try again.",
+  "errorSessionExpired": "Your session has ended. Please sign in again.",
+  "errorServerUnavailable": "The server is unavailable right now. Please try again shortly.",
+  "errorResetCodeInvalid": "This reset code is invalid or has expired.",
+  "usernameTaken": "This username is already taken.",
+  "emailTaken": "This email is already registered.",
+  "fieldInvalid": "Check this field.",
+
+  "reconnecting": "Reconnecting…",
+  "connectionLost": "No connection. Retrying…",
+  "connected": "Connected",
+  "retryNow": "Retry now",
+
+  "rememberMe": "Keep me signed in",
+  "newChat": "New chat"
 }

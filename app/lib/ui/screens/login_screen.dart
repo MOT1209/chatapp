@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       setState(() {
         _error = errorMessage(context.l10n, e);
-        _fieldErrors = e.fields;
+        _fieldErrors = fieldErrors(context.l10n, e);
       });
     } finally {
       if (mounted) setState(() => _loading = false);
