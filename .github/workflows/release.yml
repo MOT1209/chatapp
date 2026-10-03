@@ -214,7 +214,7 @@ jobs:
       - name: Package
         run: |
           mkdir -p ../dist
-          (cd build/linux/x64/release/bundle && tar -czf "../../../../../dist/chatapp-linux-x64-$TAG.tar.gz" .)
+          tar -czf "$GITHUB_WORKSPACE/dist/chatapp-linux-x64-$TAG.tar.gz" -C build/linux/x64/release/bundle .
       - uses: actions/upload-artifact@v6
         with:
           name: linux
@@ -252,7 +252,9 @@ jobs:
         run: |
           mkdir -p ../dist
           # Zips the .app bundle itself (glob, since the Xcode target name could change).
-          (cd build/macos/Build/Products/Release && zip -qry "../../../../../dist/chatapp-macos-$TAG.zip" *.app)
+          # An absolute destination (rather than counting "../" levels back out of the
+          # subshell's cd) avoided an off-by-one that broke this the first time.
+          (cd build/macos/Build/Products/Release && zip -qry "$GITHUB_WORKSPACE/dist/chatapp-macos-$TAG.zip" *.app)
       - uses: actions/upload-artifact@v6
         with:
           name: macos
