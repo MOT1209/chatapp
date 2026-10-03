@@ -13,16 +13,23 @@ import 'state/settings_controller.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  final isMobile =
-      !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
-  final TokenStorage tokens = isMobile ? SecureTokenStorage() : SharedPrefsTokenStorage(prefs);
+  final settings = SettingsController(prefs);
+  final TokenStorage persistent;
+  if (kIsWeb) {
+    // No OS credential store in the browser; documented trade-off in docs/ui-plan.md.
+    persistent = SharedPrefsTokenStorage(prefs);
+  } else {
+    persistent = SecureTokenStorage();
+    await migrateLegacyTokens(prefs, persistent);
+  }
+  final tokens = RememberingTokenStorage(persistent, remember: () => settings.rememberSession);
   final client = ApiClient(baseUrl: AppConfig.apiUrl, tokens: tokens);
 
   runApp(
     ChatApp(
       api: ChatApi(client),
       realtime: RealtimeClient(url: Uri.parse(AppConfig.wsUrl), tokens: tokens, refreshTokens: client.refreshTokens),
-      settings: SettingsController(prefs),
+      settings: settings,
     ),
   );
 }

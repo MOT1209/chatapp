@@ -15,10 +15,22 @@ import '../widgets/state_views.dart';
 import '../widgets/user_avatar.dart';
 
 class ConversationList extends StatefulWidget {
-  const ConversationList({super.key, required this.selectedId, required this.onSelect});
+  const ConversationList({
+    super.key,
+    required this.selectedId,
+    required this.onSelect,
+    this.searchFocus,
+    this.onNewChat,
+  });
 
   final String? selectedId;
   final ValueChanged<Conversation> onSelect;
+
+  /// Lets Home focus search for "New chat" and Ctrl/⌘+K.
+  final FocusNode? searchFocus;
+
+  /// Shows a "New chat" button in the header (wide layouts; phones use a FAB).
+  final VoidCallback? onNewChat;
 
   @override
   State<ConversationList> createState() => _ConversationListState();
@@ -109,6 +121,13 @@ class _ConversationListState extends State<ConversationList> {
               Expanded(
                 child: Semantics(header: true, child: Text(l.appTitle, style: theme.textTheme.titleLarge)),
               ),
+              if (widget.onNewChat != null)
+                IconButton(
+                  key: const Key('home.newChat'),
+                  tooltip: l.newChat,
+                  onPressed: widget.onNewChat,
+                  icon: const Icon(Icons.edit_square),
+                ),
             ],
           ),
         ),
@@ -118,6 +137,7 @@ class _ConversationListState extends State<ConversationList> {
           child: TextField(
             key: const Key('home.search'),
             controller: _search,
+            focusNode: widget.searchFocus,
             onChanged: _onQueryChanged,
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(

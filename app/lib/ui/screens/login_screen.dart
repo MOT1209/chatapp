@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_exception.dart';
 import '../../state/session_controller.dart';
+import '../../state/settings_controller.dart';
 import '../l10n.dart';
+import '../theme.dart';
 import '../widgets/state_views.dart';
 import 'auth_layout.dart';
 import 'forgot_password_screen.dart';
@@ -66,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_error != null) ...[ErrorBanner(message: _error!), const SizedBox(height: 16)],
+              if (_error != null) ...[ErrorBanner(message: _error!), const SizedBox(height: AppSpacing.md)],
               TextFormField(
                 key: const Key('login.identifier'),
                 controller: _identifier,
@@ -81,7 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 enabled: !_loading,
                 validator: (v) => (v == null || v.trim().isEmpty) ? l.enterEmailOrUsername : null,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.md),
               TextFormField(
                 key: const Key('login.password'),
                 controller: _password,
@@ -102,16 +104,22 @@ class _LoginScreenState extends State<LoginScreen> {
                 onFieldSubmitted: (_) => _submit(),
                 validator: (v) => (v == null || v.isEmpty) ? l.enterPassword : null,
               ),
-              Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: TextButton(
-                  onPressed: _loading ? null : () => _push(const ForgotPasswordScreen()),
-                  child: Text(l.forgotPassword),
-                ),
+              const SizedBox(height: AppSpacing.sm),
+              // Wraps on narrow phones and long translations instead of overflowing.
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _RememberMe(enabled: !_loading),
+                  TextButton(
+                    onPressed: _loading ? null : () => _push(const ForgotPasswordScreen()),
+                    child: Text(l.forgotPassword),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               SubmitButton(label: l.login, loading: _loading, onPressed: _submit),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.md),
               Wrap(
                 alignment: WrapAlignment.center,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -122,6 +130,33 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Keep me signed in". Off keeps the session in memory only, for shared devices.
+class _RememberMe extends StatelessWidget {
+  const _RememberMe({required this.enabled});
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsController>();
+    void toggle() => settings.setRememberSession(!settings.rememberSession);
+    return MergeSemantics(
+      child: InkWell(
+        key: const Key('login.remember'),
+        borderRadius: BorderRadius.circular(8),
+        onTap: enabled ? toggle : null,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Checkbox(value: settings.rememberSession, onChanged: enabled ? (_) => toggle() : null),
+            Flexible(child: Text(context.l10n.rememberMe)),
+            const SizedBox(width: 8),
+          ],
         ),
       ),
     );

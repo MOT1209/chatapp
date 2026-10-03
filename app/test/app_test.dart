@@ -1,6 +1,7 @@
 import 'package:chat_app/core/token_storage.dart';
 import 'package:chat_app/ui/screens/chat_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fake_backend.dart';
@@ -149,6 +150,40 @@ void main() {
       await unmount(tester);
     });
 
+    testWidgets('"Keep me signed in" stores the session on the device by default', (tester) async {
+      final device = InMemoryTokenStorage();
+      await pumpApp(tester, backend, deviceStore: device);
+      await login(tester, 'ahmad', 'secret-pass');
+      expect(await device.read(), isNotNull);
+      await unmount(tester);
+    });
+
+    testWidgets('unticking "Keep me signed in" keeps the session in memory only', (tester) async {
+      final device = InMemoryTokenStorage();
+      await pumpApp(tester, backend, deviceStore: device);
+      await tester.tap(find.byKey(const Key('login.remember')));
+      await tester.pumpAndSettle();
+      await login(tester, 'ahmad', 'secret-pass');
+      expect(find.text('No conversations yet'), findsNothing);
+      expect(find.text('Sara'), findsOneWidget);
+      expect(await device.read(), isNull);
+      await unmount(tester);
+    });
+
+    testWidgets('logout disconnects the realtime socket', (tester) async {
+      await pumpApp(tester, backend);
+      await login(tester, 'ahmad', 'secret-pass');
+      expect(backend.sockets.last.open, isTrue);
+      await tester.tap(find.text('Profile'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Logout'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Logout'));
+      await tester.pumpAndSettle();
+      expect(backend.sockets.last.open, isFalse);
+      await unmount(tester);
+    });
+
     testWidgets('logout returns to Login', (tester) async {
       await pumpApp(tester, backend);
       await login(tester, 'ahmad', 'secret-pass');
@@ -201,6 +236,26 @@ void main() {
       expect(stored['body'], 'See you soon');
       expect(stored['clientId'], isNotEmpty);
       expect(find.bySemanticsLabel(RegExp('You, .*, Sent')), findsWidgets);
+      await unmount(tester);
+    });
+
+    testWidgets('a read receipt from the participant turns my sent tick into "Read"', (tester) async {
+      await openSara(tester);
+      await tester.enterText(find.byKey(const Key('chat.input')), 'See you soon');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('chat.send')));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel(RegExp('You, .*, Sent')), findsWidgets);
+
+      final sent = backend.messagesIn(conversationId).last;
+      backend.push('read', {
+        'conversationId': conversationId,
+        'userId': 'u_sara',
+        'messageId': sent['id'],
+        'readAt': '2026-09-28T13:05:00.000Z',
+      });
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel(RegExp('You, .*, Read')), findsWidgets);
       await unmount(tester);
     });
 
@@ -323,6 +378,48 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(ChatScreen), findsOneWidget);
       expect(find.text('No messages yet'), findsOneWidget);
+      await unmount(tester);
+    });
+  });
+
+  group('New chat', () {
+    testWidgets('the phone FAB focuses search', (tester) async {
+      await pumpApp(tester, backend, storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'));
+      await tester.tap(find.byKey(const Key('home.newChat')));
+      await tester.pumpAndSettle();
+      expect(Focus.of(tester.element(find.byKey(const Key('home.search')))).hasFocus, isTrue);
+      await unmount(tester);
+    });
+
+    testWidgets('on desktop, the header button and Ctrl+K both focus search', (tester) async {
+      await pumpApp(tester, backend, size: desktop, storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'));
+      await tester.tap(find.text('Sara'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('home.newChat')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsNothing);
+      expect(Focus.of(tester.element(find.byKey(const Key('home.search')))).hasFocus, isTrue);
+
+      await tester.tap(find.text('Sara'));
+      await tester.pumpAndSettle();
+      await simulateKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await simulateKeyDownEvent(LogicalKeyboardKey.keyK);
+      await simulateKeyUpEvent(LogicalKeyboardKey.keyK);
+      await simulateKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsNothing);
+      await unmount(tester);
+    });
+
+    testWidgets('on desktop, Escape closes the open chat', (tester) async {
+      await pumpApp(tester, backend, size: desktop, storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'));
+      await tester.tap(find.text('Sara'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsOneWidget);
+      await simulateKeyDownEvent(LogicalKeyboardKey.escape);
+      await simulateKeyUpEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsNothing);
       await unmount(tester);
     });
   });

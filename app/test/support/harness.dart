@@ -21,6 +21,7 @@ Future<void> pumpApp(
   Tokens? storedTokens,
   String locale = 'en',
   Duration backoff = Duration.zero,
+  InMemoryTokenStorage? deviceStore,
 }) async {
   tester.view
     ..devicePixelRatio = 1
@@ -29,7 +30,12 @@ Future<void> pumpApp(
 
   SharedPreferences.setMockInitialValues({'ui.locale': locale});
   final prefs = await SharedPreferences.getInstance();
-  final tokens = InMemoryTokenStorage(storedTokens);
+  final settings = SettingsController(prefs);
+  // Same wiring as main.dart; [deviceStore] stands in for the OS credential store.
+  final tokens = RememberingTokenStorage(
+    deviceStore ?? InMemoryTokenStorage(storedTokens),
+    remember: () => settings.rememberSession,
+  );
   final client = ApiClient(baseUrl: 'http://test', tokens: tokens, httpClient: backend.httpClient);
 
   await tester.pumpWidget(
@@ -42,7 +48,7 @@ Future<void> pumpApp(
         connector: backend.connect,
         backoff: (_) => backoff,
       ),
-      settings: SettingsController(prefs),
+      settings: settings,
     ),
   );
   await tester.pumpAndSettle();
