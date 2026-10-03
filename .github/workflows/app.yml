@@ -52,10 +52,10 @@ jobs:
             os: ubuntu-24.04
             command: flutter build linux --release
           - platform: windows
-            os: windows-latest
+            os: windows-2025
             command: flutter build windows --release
           - platform: macos
-            os: macos-latest
+            os: macos-15
             command: flutter build macos --release
           # iOS (`flutter build ios --release --no-codesign`) is deferred until after Alpha.
     name: build (${{ matrix.platform }})
