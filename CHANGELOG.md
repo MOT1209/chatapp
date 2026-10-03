@@ -4,11 +4,17 @@ All notable changes to ChatApp are documented here.
 
 ## Unreleased
 
-Mobile + desktop development pass on `v0.0.2-beta`'s stabilized base. No API contract
-changes; see `docs/ui-plan.md` for the full picture.
+Mobile + desktop development pass on `v0.0.2-beta`'s stabilized base, plus the first
+working password-reset email. See `docs/ui-plan.md` for the UI picture.
 
 ### Added
 
+- **Password-reset email.** `forgot-password` now emails the reset token through a
+  pluggable mailer (`backend/src/lib/mailer.ts`): Resend when `RESEND_API_KEY` and
+  `MAIL_FROM` are set, otherwise a no-op that logs (address only, never the token) so
+  the endpoint is unchanged without a provider. A provider failure is logged and
+  swallowed — it cannot 5xx or reveal whether an address is registered. Contract §6.6
+  updated. Optional `APP_WEB_URL` adds a clickable reset link to the email.
 - **German**, alongside Arabic and English, selectable from Profile.
 - **Connection banner.** Connecting / reconnecting / lost (with "Retry now") / a brief
   "Connected" after recovery, shown on Home and in the full-screen phone chat. Replaces

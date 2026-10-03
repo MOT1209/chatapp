@@ -34,6 +34,12 @@ const EnvSchema = z
     JWT_ACCESS_TTL: z.string().default('15m'),
     JWT_REFRESH_TTL: z.string().default('30d'),
     BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
+    // Email (optional). Password-reset mail is sent only when both are set;
+    // otherwise the reset endpoint still works but sends nothing (see lib/mailer.ts).
+    RESEND_API_KEY: z.string().optional(),
+    MAIL_FROM: z.string().optional(),
+    // Optional web client origin; when set, reset emails also include a clickable link.
+    APP_WEB_URL: z.string().url().optional(),
   })
   .superRefine((data, ctx) => {
     // Weak secrets are a real risk only once this config is what a live

@@ -12,6 +12,8 @@ import { serializeUser, type UserDTO } from '../lib/serializers.js';
 import { isUniqueConstraintError } from '../lib/prisma-errors.js';
 import { env } from '../config/env.js';
 import { wsHub } from '../realtime/ws-hub.js';
+import { createMailer, type Mailer } from '../lib/mailer.js';
+import { logger } from '../lib/logger.js';
 import crypto from 'node:crypto';
 
 export type AuthTokens = { accessToken: string; refreshToken: string };
@@ -190,6 +192,13 @@ export async function logout(authorizationHeader: string | undefined, refreshTok
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+// Built once from env. Tests pass their own Mailer to requestPasswordReset instead.
+const defaultMailer: Mailer = createMailer({
+  resendApiKey: env.RESEND_API_KEY,
+  mailFrom: env.MAIL_FROM,
+  appWebUrl: env.APP_WEB_URL,
+});
+
 /**
  * True whenever the raw reset token may be surfaced outside the database at
  * all — logged, or handed back to a caller in this process. Production is
@@ -204,13 +213,16 @@ export function canExposeRawResetToken(nodeEnv: string): boolean {
 /**
  * Requests a password reset. Per docs/api-contract.md §3.1 this always
  * "succeeds" from the caller's perspective (§6.6) — the HTTP layer never
- * sees a token either way. The return value exists only for local dev
- * curl-testing and for tests, which need the raw token to drive
- * resetPassword() without an email provider (Alpha has none — see
- * backend/README.md). It is never computed, logged, or returned in
- * production.
+ * sees a token either way. When a mail provider is configured the token is
+ * emailed (see lib/mailer.ts); with none, nothing is sent and the endpoint
+ * still behaves per contract. The return value exists only for local dev
+ * curl-testing and for tests, which drive resetPassword() with the raw
+ * token directly. It is never computed, logged, or returned in production.
  */
-export async function requestPasswordReset(email: string): Promise<{ resetToken: string } | void> {
+export async function requestPasswordReset(
+  email: string,
+  mailer: Mailer = defaultMailer,
+): Promise<{ resetToken: string } | void> {
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   // Always succeeds from the caller's perspective — see docs/api-contract.md §3.1,
   // this must not reveal whether the address is registered.
@@ -235,6 +247,18 @@ export async function requestPasswordReset(email: string): Promise<{ resetToken:
       },
     }),
   ]);
+
+  // Deliver the token by email. A provider failure must neither 500 nor reveal
+  // that the address exists (contract §3.1), so it is logged and swallowed; the
+  // user can request another link. With no provider configured this is a no-op.
+  try {
+    await mailer.sendPasswordReset(user.email, rawToken);
+  } catch (err) {
+    logger.error('failed to send password reset email', {
+      userId: user.id,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   if (!canExposeRawResetToken(env.NODE_ENV)) {
     return; // Production: the token exists only as a hash from this point on.

@@ -101,8 +101,13 @@ describe('production password reset', () => {
     const app = buildTestApp();
     await registerUser(app, { email: 'prod-reset@example.com' });
     const original = env.NODE_ENV;
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    // Capture everything written to the console; the LogMailer may log a safe
+    // "no provider configured" line (address only), but a 64-hex reset token
+    // must never appear anywhere.
+    const output: string[] = [];
+    const capture = (...args: unknown[]) => void output.push(args.map(String).join(' '));
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(capture);
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(capture);
     try {
       (env as { NODE_ENV: string }).NODE_ENV = 'production';
       const result = await authService.requestPasswordReset('prod-reset@example.com');
@@ -112,8 +117,7 @@ describe('production password reset', () => {
       expect(res.status).toBe(202);
       expect(res.body).toEqual({});
 
-      expect(logSpy).not.toHaveBeenCalled();
-      expect(infoSpy).not.toHaveBeenCalled();
+      expect(output.join('\n')).not.toMatch(/[a-f0-9]{64}/);
       // The token still exists, but only as a hash.
       expect(await prisma.passwordResetToken.count()).toBeGreaterThan(0);
     } finally {

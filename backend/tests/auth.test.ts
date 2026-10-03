@@ -372,6 +372,40 @@ describe('POST /api/auth/forgot-password — token supersession', () => {
   });
 });
 
+describe('POST /api/auth/forgot-password — email delivery', () => {
+  it('sends the freshly created token to the registered address via the mailer', async () => {
+    await registerUser(app, { email: 'mailme@example.com' });
+    const sent: Array<{ to: string; token: string }> = [];
+    const mailer = { sendPasswordReset: async (to: string, token: string) => void sent.push({ to, token }) };
+
+    const result = await authService.requestPasswordReset('mailme@example.com', mailer);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.to).toBe('mailme@example.com');
+    // The emailed token is exactly the one the caller can later redeem.
+    expect(sent[0]!.token).toBe(result?.resetToken);
+  });
+
+  it('sends nothing for an unknown address, and never throws (no enumeration)', async () => {
+    const sent: string[] = [];
+    const mailer = { sendPasswordReset: async (to: string) => void sent.push(to) };
+    await expect(authService.requestPasswordReset('ghost@example.com', mailer)).resolves.toBeUndefined();
+    expect(sent).toEqual([]);
+  });
+
+  it('still returns 202 when the mail provider fails', async () => {
+    await registerUser(app, { email: 'flaky@example.com' });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const failing = { sendPasswordReset: async () => { throw new Error('provider down'); } };
+    try {
+      await expect(authService.requestPasswordReset('flaky@example.com', failing)).resolves.toBeDefined();
+      expect(errSpy).toHaveBeenCalled();
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+});
+
 describe('canExposeRawResetToken', () => {
   it('is true for development and test, false for production', () => {
     expect(authService.canExposeRawResetToken('development')).toBe(true);
