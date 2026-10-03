@@ -37,7 +37,7 @@
   "emailRequired": "Gib deine E-Mail ein",
   "emailInvalid": "Gib eine gültige E-Mail-Adresse ein",
   "passwordTooShort": "Mindestens 8 Zeichen",
-  "passwordTooLong": "Höchstens 72 Zeichen",
+  "passwordTooLong": "Zu lang: höchstens 72 Bytes (arabische Buchstaben zählen doppelt)",
   "passwordsDontMatch": "Die Passwörter stimmen nicht überein",
   "haveAccount": "Schon ein Konto?",
 
@@ -132,5 +132,10 @@
   "retryNow": "Jetzt versuchen",
 
   "rememberMe": "Angemeldet bleiben",
-  "newChat": "Neuer Chat"
+  "newChat": "Neuer Chat",
+
+  "passwordInvalid": "8–72 Zeichen verwenden (arabische Buchstaben zählen doppelt)",
+  "displayNameInvalid": "1–50 Zeichen verwenden",
+  "errorRateLimitedSeconds": "Zu viele Versuche. Versuche es in {count, plural, =1{einer Sekunde} other{{count} Sekunden}} erneut.",
+  "errorRateLimitedMinutes": "Zu viele Versuche. Versuche es in {count, plural, =1{einer Minute} other{{count} Minuten}} erneut."
 }

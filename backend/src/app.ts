@@ -17,6 +17,9 @@ export function createApp(): Express {
         .map((s) => s.trim())
         .filter(Boolean),
       // Auth is a Bearer header, not a cookie, so credentialed CORS isn't needed.
+      // Retry-After is not CORS-safelisted; without this, browsers hide it from the
+      // web client and a 429 cannot say how long to wait (contract §1.3).
+      exposedHeaders: ['Retry-After'],
     }),
   );
   app.use(express.json({ limit: '1mb' }));

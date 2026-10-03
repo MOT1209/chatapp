@@ -37,7 +37,7 @@
   "emailRequired": "Enter your email",
   "emailInvalid": "Enter a valid email address",
   "passwordTooShort": "At least 8 characters",
-  "passwordTooLong": "At most 72 characters",
+  "passwordTooLong": "Too long: at most 72 bytes (Arabic letters count as 2)",
   "passwordsDontMatch": "Passwords do not match",
   "haveAccount": "Already have an account?",
 
@@ -132,5 +132,12 @@
   "retryNow": "Retry now",
 
   "rememberMe": "Keep me signed in",
-  "newChat": "New chat"
+  "newChat": "New chat",
+
+  "passwordInvalid": "Use 8–72 characters (Arabic letters count as 2)",
+  "displayNameInvalid": "Use 1–50 characters",
+  "errorRateLimitedSeconds": "Too many attempts. Try again in {count, plural, =1{1 second} other{{count} seconds}}.",
+  "@errorRateLimitedSeconds": { "placeholders": { "count": { "type": "int" } } },
+  "errorRateLimitedMinutes": "Too many attempts. Try again in {count, plural, =1{1 minute} other{{count} minutes}}.",
+  "@errorRateLimitedMinutes": { "placeholders": { "count": { "type": "int" } } }
 }

@@ -14,7 +14,7 @@ extension L10nContext on BuildContext {
 String errorMessage(AppLocalizations l, ApiException e) => switch (e.code) {
   ApiException.networkError => l.networkError,
   'INVALID_CREDENTIALS' => l.errorInvalidCredentials,
-  'RATE_LIMITED' => l.errorRateLimited,
+  'RATE_LIMITED' => _rateLimited(l, e.retryAfter),
   'CONFLICT' => l.errorConflict,
   'NOT_FOUND' => l.errorNotFound,
   'FORBIDDEN' => l.errorForbidden,
@@ -26,14 +26,28 @@ String errorMessage(AppLocalizations l, ApiException e) => switch (e.code) {
   _ => l.somethingWentWrongRetry,
 };
 
-/// Localized per-field hints for a form. Known server field errors get a specific
-/// message; any other field the server flagged gets a generic "check this field".
+/// Says how long to wait when the server sent `Retry-After` (contract §1.3).
+String _rateLimited(AppLocalizations l, Duration? wait) {
+  if (wait == null || wait <= Duration.zero) return l.errorRateLimited;
+  final seconds = wait.inSeconds;
+  return seconds <= 90 ? l.errorRateLimitedSeconds(seconds) : l.errorRateLimitedMinutes((seconds / 60).ceil());
+}
+
+/// Localized per-field hints for a form. Known server field errors get the rule
+/// for that field (mirroring the backend validators); any other field the server
+/// flagged gets a generic "check this field".
 Map<String, String> fieldErrors(AppLocalizations l, ApiException e) => {
   for (final field in e.fields.keys)
     field: switch ((e.code, field)) {
       ('CONFLICT', 'username') => l.usernameTaken,
       ('CONFLICT', 'email') => l.emailTaken,
       (_, 'token') => l.errorResetCodeInvalid,
+      ('VALIDATION_ERROR', 'username') => l.usernameInvalid,
+      ('VALIDATION_ERROR', 'email') => l.emailInvalid,
+      ('VALIDATION_ERROR', 'password' || 'newPassword') => l.passwordInvalid,
+      ('VALIDATION_ERROR', 'displayName') => l.displayNameInvalid,
+      ('VALIDATION_ERROR', 'avatarUrl') => l.enterValidUrl,
+      ('VALIDATION_ERROR', 'identifier') => l.enterEmailOrUsername,
       _ => l.fieldInvalid,
     },
 };

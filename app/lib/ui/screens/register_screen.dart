@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -39,7 +41,8 @@ class RegisterValidators {
   String? password(String? v) {
     final value = v ?? '';
     if (value.length < 8) return l.passwordTooShort;
-    if (value.length > 72) return l.passwordTooLong;
+    // The server limit is 72 UTF-8 bytes (bcrypt), not characters: Arabic letters take 2.
+    if (utf8.encode(value).length > 72) return l.passwordTooLong;
     return null;
   }
 }

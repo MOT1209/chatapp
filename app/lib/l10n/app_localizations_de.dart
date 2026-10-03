@@ -114,7 +114,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get passwordTooShort => 'Mindestens 8 Zeichen';
 
   @override
-  String get passwordTooLong => 'Höchstens 72 Zeichen';
+  String get passwordTooLong => 'Zu lang: höchstens 72 Bytes (arabische Buchstaben zählen doppelt)';
 
   @override
   String get passwordsDontMatch => 'Die Passwörter stimmen nicht überein';
@@ -375,4 +375,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get newChat => 'Neuer Chat';
+
+  @override
+  String get passwordInvalid => '8–72 Zeichen verwenden (arabische Buchstaben zählen doppelt)';
+
+  @override
+  String get displayNameInvalid => '1–50 Zeichen verwenden';
+
+  @override
+  String errorRateLimitedSeconds(int count) {
+    String _temp0 = intl.Intl.pluralLogic(count, locale: localeName, other: '$count Sekunden', one: 'einer Sekunde');
+    return 'Zu viele Versuche. Versuche es in $_temp0 erneut.';
+  }
+
+  @override
+  String errorRateLimitedMinutes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(count, locale: localeName, other: '$count Minuten', one: 'einer Minute');
+    return 'Zu viele Versuche. Versuche es in $_temp0 erneut.';
+  }
 }

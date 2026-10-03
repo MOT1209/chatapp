@@ -37,7 +37,7 @@
   "emailRequired": "أدخل بريدك الإلكتروني",
   "emailInvalid": "أدخل بريدًا إلكترونيًا صحيحًا",
   "passwordTooShort": "8 أحرف على الأقل",
-  "passwordTooLong": "72 حرفًا كحد أقصى",
+  "passwordTooLong": "طويلة جدًا: 72 بايت كحد أقصى (الحرف العربي يُحسب 2)",
   "passwordsDontMatch": "كلمتا المرور غير متطابقتين",
   "haveAccount": "لديك حساب بالفعل؟",
 
@@ -127,5 +127,10 @@
   "retryNow": "أعد المحاولة الآن",
 
   "rememberMe": "إبقائي مسجّلًا الدخول",
-  "newChat": "محادثة جديدة"
+  "newChat": "محادثة جديدة",
+
+  "passwordInvalid": "استخدم 8 إلى 72 حرفًا (الحرف العربي يُحسب 2)",
+  "displayNameInvalid": "استخدم من 1 إلى 50 حرفًا",
+  "errorRateLimitedSeconds": "محاولات كثيرة جدًا. حاول مرة أخرى بعد {count, plural, =1{ثانية واحدة} =2{ثانيتين} few{{count} ثوانٍ} other{{count} ثانية}}.",
+  "errorRateLimitedMinutes": "محاولات كثيرة جدًا. حاول مرة أخرى بعد {count, plural, =1{دقيقة واحدة} =2{دقيقتين} few{{count} دقائق} other{{count} دقيقة}}."
 }
