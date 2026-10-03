@@ -114,7 +114,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get passwordTooShort => '8 أحرف على الأقل';
 
   @override
-  String get passwordTooLong => '72 حرفًا كحد أقصى';
+  String get passwordTooLong => 'طويلة جدًا: 72 بايت كحد أقصى (الحرف العربي يُحسب 2)';
 
   @override
   String get passwordsDontMatch => 'كلمتا المرور غير متطابقتين';
@@ -374,4 +374,36 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get newChat => 'محادثة جديدة';
+
+  @override
+  String get passwordInvalid => 'استخدم 8 إلى 72 حرفًا (الحرف العربي يُحسب 2)';
+
+  @override
+  String get displayNameInvalid => 'استخدم من 1 إلى 50 حرفًا';
+
+  @override
+  String errorRateLimitedSeconds(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ثانية',
+      few: '$count ثوانٍ',
+      two: 'ثانيتين',
+      one: 'ثانية واحدة',
+    );
+    return 'محاولات كثيرة جدًا. حاول مرة أخرى بعد $_temp0.';
+  }
+
+  @override
+  String errorRateLimitedMinutes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count دقيقة',
+      few: '$count دقائق',
+      two: 'دقيقتين',
+      one: 'دقيقة واحدة',
+    );
+    return 'محاولات كثيرة جدًا. حاول مرة أخرى بعد $_temp0.';
+  }
 }

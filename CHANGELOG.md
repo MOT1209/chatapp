@@ -25,6 +25,12 @@ changes; see `docs/ui-plan.md` for the full picture.
 
 ### Fixed
 
+- App: the register form capped passwords at 72 *characters*, but the server caps them at 72 UTF-8 *bytes* (bcrypt). An Arabic password of 37–72 letters passed the form and was then rejected. The form now counts bytes and says that Arabic letters count as 2.
+- App: server validation errors now show the rule for the field (username, email, password, display name, image URL, identifier) instead of a generic "Check this field".
+- App: a rate-limited request says how long to wait (from `Retry-After`) instead of only "wait a moment".
+- Backend: CORS exposes `Retry-After`, which browsers otherwise hide from the web client.
+- App: "Retry now" on the connection banner works while an attempt is hanging; the banner no longer stays stale after the client stops.
+- CI: `windows-latest`/`macos-latest` pinned to `windows-2025`/`macos-15`; `softprops/action-gh-release` pinned to a commit SHA; Dependabot keeps GitHub Actions current.
 - **Backend error messages are now localized**, mapped by the contract's `code` (contract
   §1.1 updated accordingly). The server's English `message` text no longer reaches the UI;
   an unrecognized code falls back to a generic, localized message. A `502`/`503`/`504`

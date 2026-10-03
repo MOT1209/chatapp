@@ -62,7 +62,7 @@ The frontend shows `fields` next to the matching form input. Because `message` a
 
 ### 1.3 Rate limiting
 
-Auth routes are rate limited. On `RATE_LIMITED` the backend should send a `Retry-After` header in seconds.
+Auth routes are rate limited. On `RATE_LIMITED` the backend should send a `Retry-After` header in seconds, and expose it via CORS (`Access-Control-Expose-Headers: Retry-After`) so web clients can read it. The client tells the user how long to wait when the header is present.
 
 ---
 

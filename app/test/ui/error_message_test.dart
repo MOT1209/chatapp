@@ -3,8 +3,14 @@ import 'package:chat_app/ui/l10n.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-ApiException _error(int status, String code, {Map<String, String> fields = const {}}) =>
-    ApiException(statusCode: status, code: code, message: 'Raw server text $code', fields: fields);
+ApiException _error(int status, String code, {Map<String, String> fields = const {}, Duration? retryAfter}) =>
+    ApiException(
+      statusCode: status,
+      code: code,
+      message: 'Raw server text $code',
+      fields: fields,
+      retryAfter: retryAfter,
+    );
 
 void main() {
   final en = lookupAppLocalizations(const Locale('en'));
@@ -44,6 +50,23 @@ void main() {
       }
     });
 
+    test('a rate limit says how long to wait when the server sent Retry-After', () {
+      String msg(AppLocalizations l, int seconds) =>
+          errorMessage(l, _error(429, 'RATE_LIMITED', retryAfter: Duration(seconds: seconds)));
+      expect(msg(en, 1), 'Too many attempts. Try again in 1 second.');
+      expect(msg(en, 30), 'Too many attempts. Try again in 30 seconds.');
+      expect(msg(en, 90), 'Too many attempts. Try again in 90 seconds.');
+      // Longer waits round up to whole minutes.
+      expect(msg(en, 91), 'Too many attempts. Try again in 2 minutes.');
+      expect(msg(en, 900), 'Too many attempts. Try again in 15 minutes.');
+      expect(msg(de, 60), 'Zu viele Versuche. Versuche es in 60 Sekunden erneut.');
+      expect(msg(ar, 2), 'محاولات كثيرة جدًا. حاول مرة أخرى بعد ثانيتين.');
+      expect(msg(ar, 5), 'محاولات كثيرة جدًا. حاول مرة أخرى بعد 5 ثوانٍ.');
+      // Without (or with a useless) Retry-After, the generic message stays.
+      expect(errorMessage(en, _error(429, 'RATE_LIMITED')), en.errorRateLimited);
+      expect(msg(en, 0), en.errorRateLimited);
+    });
+
     test('messages follow the UI language', () {
       final e = _error(401, 'INVALID_CREDENTIALS');
       expect(errorMessage(ar, e), 'اسم المستخدم أو كلمة المرور غير صحيحة.');
@@ -57,9 +80,34 @@ void main() {
       expect(fieldErrors(de, e), {'username': de.usernameTaken, 'email': de.emailTaken});
     });
 
+    test('known validation fields get their rule, mirroring the backend validators', () {
+      final e = _error(
+        400,
+        'VALIDATION_ERROR',
+        fields: {
+          'username': 'x',
+          'email': 'x',
+          'password': 'Password must be at most 72 bytes.',
+          'newPassword': 'x',
+          'displayName': 'x',
+          'avatarUrl': 'x',
+          'identifier': 'x',
+        },
+      );
+      expect(fieldErrors(ar, e), {
+        'username': ar.usernameInvalid,
+        'email': ar.emailInvalid,
+        'password': ar.passwordInvalid,
+        'newPassword': ar.passwordInvalid,
+        'displayName': ar.displayNameInvalid,
+        'avatarUrl': ar.enterValidUrl,
+        'identifier': ar.enterEmailOrUsername,
+      });
+    });
+
     test('other flagged fields get a generic hint instead of English server text', () {
-      final e = _error(400, 'VALIDATION_ERROR', fields: {'password': 'Password must be at most 72 bytes.'});
-      expect(fieldErrors(ar, e), {'password': ar.fieldInvalid});
+      final e = _error(400, 'VALIDATION_ERROR', fields: {'limit': 'Number must be at most 50.'});
+      expect(fieldErrors(ar, e), {'limit': ar.fieldInvalid});
     });
   });
 }

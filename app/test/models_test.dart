@@ -121,6 +121,12 @@ void main() {
       expect(v.password('a' * 73), isNotNull);
     });
 
+    test('password length is capped in UTF-8 bytes like the server (bcrypt), not characters', () {
+      // 36 Arabic letters = 72 bytes: accepted. 37 = 74 bytes: the server would reject it.
+      expect(v.password('ب' * 36), isNull);
+      expect(v.password('ب' * 37), en.passwordTooLong);
+    });
+
     test('email and display name', () {
       expect(v.email('nope'), isNotNull);
       expect(v.email('a@b.co'), isNull);

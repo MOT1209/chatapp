@@ -146,7 +146,7 @@ jobs:
 
   windows:
     needs: meta
-    runs-on: windows-latest
+    runs-on: windows-2025
     env:
       TAG: ${{ needs.meta.outputs.tag }}
       BUILD_NAME: ${{ needs.meta.outputs.name }}
@@ -223,7 +223,7 @@ jobs:
 
   macos:
     needs: meta
-    runs-on: macos-latest
+    runs-on: macos-15
     env:
       TAG: ${{ needs.meta.outputs.tag }}
       BUILD_NAME: ${{ needs.meta.outputs.name }}

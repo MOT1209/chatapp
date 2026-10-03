@@ -306,7 +306,7 @@ abstract class AppLocalizations {
   /// No description provided for @passwordTooLong.
   ///
   /// In en, this message translates to:
-  /// **'At most 72 characters'**
+  /// **'Too long: at most 72 bytes (Arabic letters count as 2)'**
   String get passwordTooLong;
 
   /// No description provided for @passwordsDontMatch.
@@ -806,6 +806,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New chat'**
   String get newChat;
+
+  /// No description provided for @passwordInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Use 8–72 characters (Arabic letters count as 2)'**
+  String get passwordInvalid;
+
+  /// No description provided for @displayNameInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Use 1–50 characters'**
+  String get displayNameInvalid;
+
+  /// No description provided for @errorRateLimitedSeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many attempts. Try again in {count, plural, =1{1 second} other{{count} seconds}}.'**
+  String errorRateLimitedSeconds(int count);
+
+  /// No description provided for @errorRateLimitedMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many attempts. Try again in {count, plural, =1{1 minute} other{{count} minutes}}.'**
+  String errorRateLimitedMinutes(int count);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
