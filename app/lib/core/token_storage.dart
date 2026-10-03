@@ -13,9 +13,15 @@ abstract class TokenStorage {
   Future<void> clear();
 }
 
-/// Keychain (iOS) / Keystore-backed encrypted storage (Android).
+/// The OS credential store: Keychain (iOS, macOS), Keystore-backed encryption
+/// (Android), DPAPI (Windows), libsecret (Linux).
+///
+/// macOS uses the legacy keychain: the data-protection keychain needs the
+/// Keychain Sharing entitlement and a provisioning profile, without which an
+/// unsigned build only launches on the Mac that built it.
 class SecureTokenStorage implements TokenStorage {
-  SecureTokenStorage([FlutterSecureStorage? storage]) : _storage = storage ?? const FlutterSecureStorage();
+  SecureTokenStorage([FlutterSecureStorage? storage])
+    : _storage = storage ?? const FlutterSecureStorage(mOptions: MacOsOptions(usesDataProtectionKeychain: false));
 
   final FlutterSecureStorage _storage;
   static const _accessKey = 'auth.accessToken';
@@ -42,8 +48,9 @@ class SecureTokenStorage implements TokenStorage {
   }
 }
 
-/// Used on web and desktop. On web this is `localStorage` and readable by any
-/// XSS; on desktop it is a plain file in the user's profile.
+/// Used on web only, where it is `localStorage` and readable by any XSS (see
+/// docs/ui-plan.md). On native platforms it is only read once, to migrate
+/// tokens stored in plaintext by v0.0.1 (see [migrateLegacyTokens]).
 class SharedPrefsTokenStorage implements TokenStorage {
   SharedPrefsTokenStorage(this._prefs);
 
@@ -84,4 +91,76 @@ class InMemoryTokenStorage implements TokenStorage {
 
   @override
   Future<void> clear() async => _tokens = null;
+}
+
+/// Keeps the session in memory, and in [persistent] only while [remember]
+/// ("Keep me signed in") is true at the time tokens are written.
+///
+/// A persistent store that fails (e.g. Linux without a running keyring) degrades
+/// to memory only, never to plaintext: the user simply signs in again next launch.
+class RememberingTokenStorage implements TokenStorage {
+  RememberingTokenStorage(this.persistent, {required bool Function() remember}) : _remember = remember;
+
+  final TokenStorage persistent;
+  final bool Function() _remember;
+  Tokens? _memory;
+  bool _loaded = false;
+
+  @override
+  Future<Tokens?> read() async {
+    if (!_loaded) {
+      _loaded = true;
+      try {
+        _memory ??= await persistent.read();
+      } on Object {
+        // Unreadable store: behave as signed out.
+      }
+    }
+    return _memory;
+  }
+
+  @override
+  Future<void> write(Tokens tokens) async {
+    _memory = tokens;
+    _loaded = true;
+    if (_remember()) {
+      try {
+        await persistent.write(tokens);
+        return;
+      } on Object {
+        // Fall through: don't leave a stale session behind in the store.
+      }
+    }
+    await _clearPersistent();
+  }
+
+  @override
+  Future<void> clear() async {
+    _memory = null;
+    _loaded = true;
+    await _clearPersistent();
+  }
+
+  Future<void> _clearPersistent() async {
+    try {
+      await persistent.clear();
+    } on Object {
+      // Nothing more we can do; memory is already cleared.
+    }
+  }
+}
+
+/// v0.0.1 stored tokens in plaintext shared preferences on desktop. Move them
+/// into [secure] and always delete the plaintext copy, even if the move fails
+/// (that only costs one sign-in).
+Future<void> migrateLegacyTokens(SharedPreferences prefs, TokenStorage secure) async {
+  final legacy = SharedPrefsTokenStorage(prefs);
+  final tokens = await legacy.read();
+  if (tokens == null) return;
+  try {
+    await secure.write(tokens);
+  } on Object {
+    // The user signs in again.
+  }
+  await legacy.clear();
 }

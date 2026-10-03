@@ -149,6 +149,26 @@ void main() {
       await unmount(tester);
     });
 
+    testWidgets('"Keep me signed in" stores the session on the device by default', (tester) async {
+      final device = InMemoryTokenStorage();
+      await pumpApp(tester, backend, deviceStore: device);
+      await login(tester, 'ahmad', 'secret-pass');
+      expect(await device.read(), isNotNull);
+      await unmount(tester);
+    });
+
+    testWidgets('unticking "Keep me signed in" keeps the session in memory only', (tester) async {
+      final device = InMemoryTokenStorage();
+      await pumpApp(tester, backend, deviceStore: device);
+      await tester.tap(find.byKey(const Key('login.remember')));
+      await tester.pumpAndSettle();
+      await login(tester, 'ahmad', 'secret-pass');
+      expect(find.text('No conversations yet'), findsNothing);
+      expect(find.text('Sara'), findsOneWidget);
+      expect(await device.read(), isNull);
+      await unmount(tester);
+    });
+
     testWidgets('logout returns to Login', (tester) async {
       await pumpApp(tester, backend);
       await login(tester, 'ahmad', 'secret-pass');

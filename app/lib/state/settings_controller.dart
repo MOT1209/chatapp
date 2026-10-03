@@ -11,6 +11,7 @@ class SettingsController extends ChangeNotifier {
       };
 
   static const _themeKey = 'ui.themeMode';
+  static const _rememberKey = 'auth.rememberSession';
   static const _localeKey = 'ui.locale';
   static const supportedLocales = [Locale('ar'), Locale('en'), Locale('de')];
 
@@ -21,6 +22,15 @@ class SettingsController extends ChangeNotifier {
 
   Locale? _locale;
   Locale? get locale => _locale;
+
+  /// "Keep me signed in": whether tokens are stored on the device (see `RememberingTokenStorage`).
+  bool get rememberSession => _prefs.getBool(_rememberKey) ?? true;
+
+  Future<void> setRememberSession(bool value) async {
+    if (value == rememberSession) return;
+    await _prefs.setBool(_rememberKey, value);
+    notifyListeners();
+  }
 
   Future<void> setThemeMode(ThemeMode mode) async {
     if (mode == _themeMode) return;
