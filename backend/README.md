@@ -142,9 +142,11 @@ backend/
   expiry, resetting invalidates every existing session. The raw token is
   environment-gated (`canExposeRawResetToken` in `auth.service.ts`) — logged
   in development, returned only to test code, **never logged, returned, or
-  otherwise exposed in production** (no email provider is wired up yet — see
-  `docs/api-contract.md` §6.6, and until one is, the token is unrecoverable
-  once created, by design).
+  otherwise exposed in production**. Delivery is by email when a provider is
+  configured (`src/lib/mailer.ts`): set `RESEND_API_KEY` and `MAIL_FROM` for
+  [Resend](https://resend.com); with neither set, the endpoint still behaves
+  per contract but sends nothing. A provider failure is logged and swallowed
+  so it can neither 500 nor reveal whether an address is registered.
 - `POST /auth/logout` revokes **every** session for the account, not just the
   caller's — see `docs/api-contract.md`'s logout section.
 - Auth, user search, and message-send routes are rate limited
@@ -173,7 +175,7 @@ backend/
   trace, a raw error message, or any internal detail in an HTTP response —
   unexpected errors always become a generic `SERVER_ERROR`; the real detail
   goes only to the server-side logger.
-- No email/SMTP integration yet — see `docs/api-contract.md` §6.6.
+- Email is sent via Resend's HTTP API when configured (`src/lib/mailer.ts`); SMTP is not used. Password reset is the only message. See `docs/api-contract.md` §6.6.
 
 ## Contract
 
