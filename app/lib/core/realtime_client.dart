@@ -117,21 +117,29 @@ class RealtimeClient extends ChangeNotifier {
     unawaited(_open());
   }
 
-  /// Retry immediately, e.g. when the app returns to the foreground.
+  /// Retry immediately, e.g. when the app returns to the foreground or the user
+  /// taps "Retry now". An attempt still in flight (a sleeping server can hang the
+  /// handshake) is abandoned and replaced by a fresh one.
   void reconnectNow() {
-    if (!_shouldRun || _status != RealtimeStatus.disconnected) return;
+    if (!_shouldRun || _status == RealtimeStatus.connected) return;
     _reconnectTimer?.cancel();
+    _teardown();
     _attempt = 0;
+    // The phase leaves `lost` even when the status stays `connecting`.
+    notifyListeners();
     unawaited(_open());
   }
 
   void disconnect() {
+    final changed = _shouldRun || _status != RealtimeStatus.disconnected;
     _shouldRun = false;
     _everConnected = false;
     _attempt = 0;
     _reconnectTimer?.cancel();
     _teardown();
-    _setStatus(RealtimeStatus.disconnected);
+    _status = RealtimeStatus.disconnected;
+    // Notify even if the status was already `disconnected`: the phase is now `idle`.
+    if (changed) notifyListeners();
   }
 
   @override
@@ -144,8 +152,11 @@ class RealtimeClient extends ChangeNotifier {
   Future<void> _open() async {
     if (!_shouldRun || _connection != null) return;
     final stored = await tokens.read();
-    if (stored == null || !_shouldRun) {
-      _setStatus(RealtimeStatus.disconnected);
+    if (!_shouldRun || _connection != null) return;
+    if (stored == null) {
+      // Treat it like a failed attempt so the UI reaches `lost` (with a retry)
+      // instead of showing "Connecting…" forever.
+      _scheduleReconnect();
       return;
     }
     _setStatus(RealtimeStatus.connecting);
@@ -154,9 +165,16 @@ class RealtimeClient extends ChangeNotifier {
     final SocketConnection connection;
     try {
       connection = _connector(url);
-      _connection = connection;
+    } on Object {
+      _scheduleReconnect();
+      return;
+    }
+    _connection = connection;
+    try {
       await connection.ready;
     } on Object {
+      // Abandoned by reconnectNow/disconnect: the replacement owns the state now.
+      if (!identical(_connection, connection)) return;
       _connection = null;
       _scheduleReconnect();
       return;
@@ -232,6 +250,8 @@ class RealtimeClient extends ChangeNotifier {
       }
       if (!refreshed) {
         _shouldRun = false;
+        // The status is already `disconnected`; the phase changed to `idle`.
+        notifyListeners();
         return;
       }
     }
