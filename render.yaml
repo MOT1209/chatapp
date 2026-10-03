@@ -3,18 +3,30 @@
 #
 # Single instance only: the realtime hub is in-memory (docs/architecture.md).
 # Do not raise numInstances above 1.
+#
+# Region: Frankfurt, closest to the Arabic- and German-speaking users. A database
+# cannot change region after it is created, and the service must be in the same
+# region to reach it over the internal network (otherwise P1001, docs/deployment.md).
 databases:
   - name: chatapp-db
     databaseName: chatapp
     user: chatapp
-    plan: free # check Render's current free-tier limits; use a paid plan for a real beta
+    region: frankfurt
+    # Free databases expire after 30 days and their data is deleted.
+    plan: basic-256mb
+    # No public access: only services in the same Render region/workspace connect,
+    # over the internal network.
+    ipAllowList: []
 
 services:
   - type: web
     name: chatapp-api
     runtime: node
     rootDir: backend
-    plan: free # free services sleep when idle and drop WebSocket connections; use a paid plan for always-on
+    region: frankfurt
+    # Free services sleep after ~15 idle minutes and drop every WebSocket; a chat
+    # backend must stay up.
+    plan: starter
     numInstances: 1
     # typescript and prisma are devDependencies and are needed at build time and for
     # `prisma migrate deploy`, so dev dependencies must be installed even though
