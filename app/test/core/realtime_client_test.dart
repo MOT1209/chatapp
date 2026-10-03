@@ -126,6 +126,65 @@ void main() {
       client.dispose();
     });
 
+    test('"Retry now" abandons a hanging attempt and connects', () async {
+      backend.refuseConnections = true;
+      final client = build()..connect();
+      await settle();
+      expect(client.phase, ConnectionPhase.lost);
+
+      // The next attempt hangs in the handshake, which keeps the status `connecting`.
+      backend
+        ..refuseConnections = false
+        ..hangConnections = true;
+      client.reconnectNow();
+      await settle();
+      expect(client.status, RealtimeStatus.connecting);
+      final hanging = backend.sockets.single;
+
+      backend.hangConnections = false;
+      client.reconnectNow();
+      await settle();
+      expect(hanging.open, isFalse);
+      expect(backend.sockets, hasLength(2));
+      expect(client.phase, ConnectionPhase.connected);
+      client.dispose();
+    });
+
+    test('disconnect while waiting to retry tells listeners it is idle', () async {
+      backend.refuseConnections = true;
+      final client = build()..connect();
+      await settle();
+      expect(client.phase, ConnectionPhase.lost);
+      var notified = false;
+      client.addListener(() => notified = true);
+
+      client.disconnect();
+      expect(notified, isTrue);
+      expect(client.phase, ConnectionPhase.idle);
+      client.dispose();
+    });
+
+    test('a rejected refresh tells listeners it is idle', () async {
+      final client = build(refresh: () async => false)..connect();
+      await settle();
+      final phases = <ConnectionPhase>[];
+      client.addListener(() => phases.add(client.phase));
+
+      backend.sockets.single.serverClose(4401);
+      await settle();
+      expect(phases.last, ConnectionPhase.idle);
+      client.dispose();
+    });
+
+    test('missing tokens end in "lost" with a retry, not endless "connecting"', () async {
+      await tokens.clear();
+      final client = build()..connect();
+      await settle();
+      expect(client.phase, ConnectionPhase.lost);
+      expect(backend.sockets, isEmpty);
+      client.dispose();
+    });
+
     test('a first connection that keeps failing is "lost", not "reconnecting"', () async {
       backend.refuseConnections = true;
       final client = build()..connect();

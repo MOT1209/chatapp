@@ -84,9 +84,12 @@ class FakeBackend {
   /// While true, new WebSocket connections fail (offline, or the server is down).
   bool refuseConnections = false;
 
+  /// While true, new connections never finish the handshake (a sleeping server).
+  bool hangConnections = false;
+
   SocketConnection connect(Uri _) {
     if (refuseConnections) throw const SocketRefused();
-    final socket = FakeSocket(this);
+    final socket = FakeSocket(this, hang: hangConnections);
     sockets.add(socket);
     return socket;
   }
@@ -237,9 +240,10 @@ class SocketRefused implements Exception {
 }
 
 class FakeSocket implements SocketConnection {
-  FakeSocket(this._backend);
+  FakeSocket(this._backend, {bool hang = false}) : _handshake = hang ? Completer<void>() : null;
 
   final FakeBackend _backend;
+  final Completer<void>? _handshake;
   final _incoming = StreamController<dynamic>();
   final sent = <Map<String, dynamic>>[];
   bool open = true;
@@ -248,7 +252,7 @@ class FakeSocket implements SocketConnection {
   int? closeCode;
 
   @override
-  Future<void> get ready async {}
+  Future<void> get ready => _handshake?.future ?? Future<void>.value();
 
   @override
   Stream<dynamic> get stream => _incoming.stream;
@@ -284,6 +288,8 @@ class FakeSocket implements SocketConnection {
   Future<void> close() async {
     if (!open) return;
     open = false;
+    final handshake = _handshake;
+    if (handshake != null && !handshake.isCompleted) handshake.completeError(const SocketRefused());
     await _incoming.close();
   }
 }
