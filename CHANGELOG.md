@@ -23,6 +23,10 @@ changes; see `docs/ui-plan.md` for the full picture.
 - `.github/workflows/release.yml` builds Linux (tar.gz) and macOS (unsigned `.app` zip)
   alongside the existing Web/Android/Windows artifacts.
 
+### Removed
+
+- `render.yaml`: deployment is postponed. `docs/deployment.md` keeps the prepared Blueprint (Frankfurt, paid plans, internal-only database) and the steps to resume.
+
 ### Fixed
 
 - App: the register form capped passwords at 72 *characters*, but the server caps them at 72 UTF-8 *bytes* (bcrypt). An Arabic password of 37–72 letters passed the form and was then rejected. The form now counts bytes and says that Arabic letters count as 2.

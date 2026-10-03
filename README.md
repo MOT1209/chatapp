@@ -81,7 +81,7 @@ npm install
 npm run dev          # backend + Flutter web on http://localhost:5173 in parallel
 ```
 
-Deploying the backend to Render: [`docs/deployment.md`](docs/deployment.md).
+Deployment is postponed; how to resume on Render: [`docs/deployment.md`](docs/deployment.md).
 
 Health check:
 
