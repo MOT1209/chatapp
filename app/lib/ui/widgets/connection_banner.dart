@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/realtime_client.dart';
 import '../l10n.dart';
+import '../theme.dart';
 
 /// A thin strip that explains the realtime connection in plain words:
 /// connecting, reconnecting, lost (with "Retry now"), and a short "Connected"
@@ -103,11 +104,16 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
               child: Material(
                 color: background,
                 child: Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 8, 6),
+                  padding: const EdgeInsetsDirectional.fromSTEB(
+                    AppSpacing.md,
+                    AppSpacing.xs + 2,
+                    AppSpacing.sm,
+                    AppSpacing.xs + 2,
+                  ),
                   child: Row(
                     children: [
                       Icon(icon, size: 18, color: foreground),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: AppSpacing.md - AppSpacing.xs),
                       Expanded(
                         child: Text(text, style: TextStyle(color: foreground)),
                       ),

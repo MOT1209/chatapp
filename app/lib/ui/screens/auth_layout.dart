@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n.dart';
+import '../theme.dart';
 
 class AuthLayout extends StatelessWidget {
   const AuthLayout({super.key, required this.title, required this.subtitle, required this.child});
@@ -17,22 +18,22 @@ class AuthLayout extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Icon(Icons.chat_bubble_rounded, size: 48, color: theme.colorScheme.primary),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   Text(title, style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.sm),
                   Text(
                     subtitle,
                     style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AppSpacing.xl),
                   child,
                 ],
               ),

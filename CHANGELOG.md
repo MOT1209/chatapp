@@ -4,11 +4,42 @@ All notable changes to ChatApp are documented here.
 
 ## Unreleased
 
-### Fixed
-
-- `render.yaml` pins `NODE_VERSION=22`; `docs/deployment.md` documents the failure seen when a Render service is created by hand instead of from the Blueprint.
+Mobile + desktop development pass on `v0.0.2-beta`'s stabilized base. No API contract
+changes; see `docs/ui-plan.md` for the full picture.
 
 ### Added
+
+- **German**, alongside Arabic and English, selectable from Profile.
+- **Connection banner.** Connecting / reconnecting / lost (with "Retry now") / a brief
+  "Connected" after recovery, shown on Home and in the full-screen phone chat. Replaces
+  the small offline chip.
+- **"Keep me signed in."** Unticked (default on), the session lives in memory only and
+  is gone on next launch — for a shared or borrowed device.
+- **"New chat"**: a FAB on phones, a header button on wider layouts; both focus search.
+  Desktop also gets `Ctrl`/`⌘`+`K` (focus search) and `Esc` (close the open chat).
+- Design tokens (`AppSpacing`, `AppRadius`, `minTapTarget`) and shared theming for
+  cards, dialogs, list tiles, the app bar, snackbars and chips; every button now has a
+  48px minimum tap target.
+- `.github/workflows/release.yml` builds Linux (tar.gz) and macOS (unsigned `.app` zip)
+  alongside the existing Web/Android/Windows artifacts.
+
+### Fixed
+
+- **Backend error messages are now localized**, mapped by the contract's `code` (contract
+  §1.1 updated accordingly). The server's English `message` text no longer reaches the UI;
+  an unrecognized code falls back to a generic, localized message. A `502`/`503`/`504`
+  reads as "server unavailable" rather than a raw status code.
+- **Desktop tokens are no longer plaintext.** Windows, Linux and macOS now use the OS
+  credential store (DPAPI / libsecret / Keychain) like Android and iOS already did; web
+  keeps `localStorage` (documented trade-off, unchanged). Existing plaintext tokens from
+  v0.0.1 are migrated once, then deleted either way.
+- `render.yaml` pins `NODE_VERSION=22`; `docs/deployment.md` documents the failure seen when a Render service is created by hand instead of from the Blueprint.
+- `.github/workflows/*.yml`: actions moved to their lowest Node-24 major (`checkout`@v5,
+  `setup-java`/`setup-node`@v5, `upload-artifact`@v6, `download-artifact`@v7,
+  `action-gh-release`@v3) ahead of GitHub's Node 20 removal; runners pinned to
+  `ubuntu-24.04` ahead of the `ubuntu-latest` move to Ubuntu 26.
+
+### Added (earlier, unreleased)
 
 - `render.yaml` and `docs/deployment.md`: Render Blueprint for the backend + PostgreSQL (validated locally in production mode; not yet deployed to a live account).
 

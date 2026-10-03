@@ -1,9 +1,9 @@
 name: release
 
-# Builds the downloadable clients: Web, Android APK and Windows desktop.
-#   - push a `v*` tag  -> build all three and attach them to a DRAFT GitHub Release
+# Builds the downloadable clients: Web, Android APK, Windows, Linux and macOS desktop.
+#   - push a `v*` tag  -> build all five and attach them to a DRAFT GitHub Release
 #   - manual dispatch  -> build and upload workflow artifacts only (dry run, no release)
-# macOS, Linux and iOS are intentionally not built here yet.
+# iOS is intentionally not built here yet (needs code signing).
 
 on:
   push:
@@ -181,10 +181,90 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  linux:
+    needs: meta
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ needs.meta.outputs.tag }}
+      BUILD_NAME: ${{ needs.meta.outputs.name }}
+      BUILD_NUMBER: ${{ needs.meta.outputs.number }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Linux toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjsoncpp-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Dart defines
+        shell: bash
+        run: |
+          # URLs were validated in the meta job; written to a file so no shell quoting is involved.
+          printf '{"API_URL":"%s","WS_URL":"%s"}\n' "${API_URL:-http://localhost:4000}" "${WS_URL:-ws://localhost:4000/ws}" > defines.json
+      - name: Build Linux
+        shell: bash
+        run: flutter build linux --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --dart-define-from-file=defines.json
+      - name: Package
+        run: |
+          mkdir -p ../dist
+          tar -czf "$GITHUB_WORKSPACE/dist/chatapp-linux-x64-$TAG.tar.gz" -C build/linux/x64/release/bundle .
+      - uses: actions/upload-artifact@v6
+        with:
+          name: linux
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    needs: meta
+    runs-on: macos-latest
+    env:
+      TAG: ${{ needs.meta.outputs.tag }}
+      BUILD_NAME: ${{ needs.meta.outputs.name }}
+      BUILD_NUMBER: ${{ needs.meta.outputs.number }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Dart defines
+        shell: bash
+        run: |
+          # URLs were validated in the meta job; written to a file so no shell quoting is involved.
+          printf '{"API_URL":"%s","WS_URL":"%s"}\n' "${API_URL:-http://localhost:4000}" "${WS_URL:-ws://localhost:4000/ws}" > defines.json
+      - name: Build macOS
+        shell: bash
+        run: flutter build macos --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --dart-define-from-file=defines.json
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p ../dist
+          # Zips the .app bundle itself (glob, since the Xcode target name could change).
+          # An absolute destination (rather than counting "../" levels back out of the
+          # subshell's cd) avoided an off-by-one that broke this the first time.
+          (cd build/macos/Build/Products/Release && zip -qry "$GITHUB_WORKSPACE/dist/chatapp-macos-$TAG.zip" *.app)
+      - uses: actions/upload-artifact@v6
+        with:
+          name: macos
+          path: dist/*
+          if-no-files-found: error
+
   # Only on a tag push. Creates a DRAFT: nothing is public until a person publishes it.
   release:
     if: github.ref_type == 'tag'
-    needs: [meta, web, android, windows]
+    needs: [meta, web, android, windows, linux, macos]
     runs-on: ubuntu-24.04
     env:
       LOCALHOST: ${{ needs.meta.outputs.localhost }}
@@ -200,10 +280,12 @@ jobs:
           cd dist
           sha256sum * > SHA256SUMS.txt
           {
-            echo "Web, Android (APK) and Windows (x64) builds. macOS, Linux and iOS are not included."
+            echo "Web, Android (APK), Windows (x64), Linux (x64) and macOS (unsigned) builds. iOS is not included."
             echo
             echo "- **Android APK** is signed with a CI debug key: install by sideloading; it cannot be updated in place and is not Play Store ready."
             echo "- **Windows** is an unsigned portable zip (SmartScreen will warn). Unzip and run \`chat_app.exe\`."
+            echo "- **Linux** is an unsigned tar.gz; extract and run \`chat_app\`. Needs the GTK/libsecret runtime libraries (present on most desktop distros)."
+            echo "- **macOS** is an unsigned, non-notarized \`.app\` zip: Gatekeeper will refuse to open it from a normal double-click. Either right-click → Open → Open anyway, or \`xattr -dr com.apple.quarantine chat_app.app\` first."
             echo "- **Web** is a static bundle; host it yourself."
             echo "- Builds compile-checked only; not tested on real devices."
             if [[ "$LOCALHOST" == "true" ]]; then
