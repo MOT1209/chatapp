@@ -5,6 +5,7 @@ import '../../core/api_exception.dart';
 import '../../state/session_controller.dart';
 import '../../state/settings_controller.dart';
 import '../l10n.dart';
+import '../theme.dart';
 import '../widgets/state_views.dart';
 import 'auth_layout.dart';
 import 'forgot_password_screen.dart';
@@ -67,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_error != null) ...[ErrorBanner(message: _error!), const SizedBox(height: 16)],
+              if (_error != null) ...[ErrorBanner(message: _error!), const SizedBox(height: AppSpacing.md)],
               TextFormField(
                 key: const Key('login.identifier'),
                 controller: _identifier,
@@ -82,7 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 enabled: !_loading,
                 validator: (v) => (v == null || v.trim().isEmpty) ? l.enterEmailOrUsername : null,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.md),
               TextFormField(
                 key: const Key('login.password'),
                 controller: _password,
@@ -103,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 onFieldSubmitted: (_) => _submit(),
                 validator: (v) => (v == null || v.isEmpty) ? l.enterPassword : null,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               // Wraps on narrow phones and long translations instead of overflowing.
               Wrap(
                 alignment: WrapAlignment.spaceBetween,
@@ -116,9 +117,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               SubmitButton(label: l.login, loading: _loading, onPressed: _submit),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.md),
               Wrap(
                 alignment: WrapAlignment.center,
                 crossAxisAlignment: WrapCrossAlignment.center,
