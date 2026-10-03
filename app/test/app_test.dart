@@ -170,6 +170,20 @@ void main() {
       await unmount(tester);
     });
 
+    testWidgets('logout disconnects the realtime socket', (tester) async {
+      await pumpApp(tester, backend);
+      await login(tester, 'ahmad', 'secret-pass');
+      expect(backend.sockets.last.open, isTrue);
+      await tester.tap(find.text('Profile'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Logout'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Logout'));
+      await tester.pumpAndSettle();
+      expect(backend.sockets.last.open, isFalse);
+      await unmount(tester);
+    });
+
     testWidgets('logout returns to Login', (tester) async {
       await pumpApp(tester, backend);
       await login(tester, 'ahmad', 'secret-pass');
@@ -222,6 +236,26 @@ void main() {
       expect(stored['body'], 'See you soon');
       expect(stored['clientId'], isNotEmpty);
       expect(find.bySemanticsLabel(RegExp('You, .*, Sent')), findsWidgets);
+      await unmount(tester);
+    });
+
+    testWidgets('a read receipt from the participant turns my sent tick into "Read"', (tester) async {
+      await openSara(tester);
+      await tester.enterText(find.byKey(const Key('chat.input')), 'See you soon');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('chat.send')));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel(RegExp('You, .*, Sent')), findsWidgets);
+
+      final sent = backend.messagesIn(conversationId).last;
+      backend.push('read', {
+        'conversationId': conversationId,
+        'userId': 'u_sara',
+        'messageId': sent['id'],
+        'readAt': '2026-09-28T13:05:00.000Z',
+      });
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel(RegExp('You, .*, Read')), findsWidgets);
       await unmount(tester);
     });
 
