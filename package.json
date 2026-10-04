@@ -9,7 +9,8 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:app": "cd app && flutter run -d chrome --web-port 5173",
     "build": "npm --prefix backend run build && cd app && flutter build web --release",
-    "test": "npm --prefix backend test && cd app && flutter test",
+    "test": "npm --prefix backend test && cd app && flutter test && npm run test:scripts",
+    "test:scripts": "node --test scripts/validate-artifacts.test.mjs scripts/validate-release-urls.test.mjs",
     "lint": "npm --prefix backend run lint && cd app && flutter analyze",
     "typecheck": "npm --prefix backend run typecheck && cd app && flutter analyze"
   },

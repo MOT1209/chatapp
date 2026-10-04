@@ -4,6 +4,16 @@ name: release
 #   - push a `v*` tag  -> build all five and attach them to a DRAFT GitHub Release
 #   - manual dispatch  -> build and upload workflow artifacts only (dry run, no release)
 # iOS is intentionally not built here yet (needs code signing).
+#
+# Release builds never silently point at localhost: on a tag, API_URL/WS_URL are
+# mandatory, must be https:// and wss:// respectively, and loopback/localhost/
+# malformed values are rejected before anything is built (scripts/validate-release-urls.mjs).
+# Manual dispatch builds may still use localhost for dry-run testing.
+#
+# Every artifact is verified before upload (exists, non-empty, expected name);
+# the Windows ZIP is additionally unpacked and checked to actually contain a
+# runnable Flutter app — chat_app.exe, flutter_windows.dll and data/ — wrapped
+# in a ChatApp/ top-level folder (scripts/validate-artifacts.mjs).
 
 on:
   push:
@@ -16,6 +26,10 @@ on:
       ws_url:
         description: 'Backend WebSocket URL baked into the build (default: repo variable WS_URL)'
         required: false
+      require_release_signing:
+        description: 'Fail the Android build unless release signing secrets are configured'
+        required: false
+        default: 'false'
 
 concurrency:
   group: release-${{ github.ref }}
@@ -30,7 +44,8 @@ env:
   WS_URL: ${{ inputs.ws_url || vars.WS_URL }}
 
 jobs:
-  # Resolves the version once so every artifact is named consistently.
+  # Resolves the version once so every artifact is named consistently, and
+  # validates the release configuration BEFORE any build minutes are spent.
   meta:
     runs-on: ubuntu-24.04
     outputs:
@@ -39,6 +54,10 @@ jobs:
       number: ${{ steps.v.outputs.number }}
       localhost: ${{ steps.v.outputs.localhost }}
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
       - id: v
         shell: bash
         run: |
@@ -51,12 +70,6 @@ jobs:
           base="${tag#v}"; base="${base%%-*}"
           if [[ ! "$base" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then base="0.0.0"; fi
           localhost="true"
-          url_re='^(https?|wss?)://[A-Za-z0-9._~:/?#@%&=+,-]+$'
-          for u in "$API_URL" "$WS_URL"; do
-            if [[ -n "$u" && ! "$u" =~ $url_re ]]; then
-              echo "::error::Invalid backend URL (must be http(s):// or ws(s):// with no spaces or quotes)."; exit 1
-            fi
-          done
           if [[ -n "$API_URL" ]]; then localhost="false"; fi
           {
             echo "tag=$tag"
@@ -64,9 +77,37 @@ jobs:
             echo "number=$GITHUB_RUN_NUMBER"
             echo "localhost=$localhost"
           } >> "$GITHUB_OUTPUT"
-          if [[ "$localhost" == "true" ]]; then
-            echo "::warning::API_URL is not set: these builds point at localhost and cannot reach any server."
+      # Repair brief §4: a release build must never fall back to localhost.
+      # Tag builds are strict (https/wss required, loopback rejected); manual
+      # dispatch builds stay allowed to use localhost for dry runs.
+      - name: Validate backend URLs
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            node scripts/validate-release-urls.mjs --strict
+          else
+            node scripts/validate-release-urls.mjs
           fi
+      # Repair brief §5: tag, app version, package versions and artifact names
+      # must agree. The app version itself is forced via --build-name below, so
+      # this check keeps the *repository* versions from drifting from the tag.
+      - name: Check version consistency
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          expected="${{ steps.v.outputs.name }}"
+          pubspec="$(grep -E '^version:' app/pubspec.yaml | awk '{print $2}' | cut -d+ -f1)"
+          backend="$(node -p "require('./backend/package.json').version" | cut -d- -f1)"
+          root="$(node -p "require('./package.json').version" | cut -d- -f1)"
+          failed=0
+          for pair in "app/pubspec.yaml:$pubspec" "backend/package.json:$backend" "package.json:$root"; do
+            file="${pair%%:*}"; version="${pair#*:}"
+            if [[ "$version" != "$expected" ]]; then
+              echo "::error::Version mismatch: $file says $version but tag $GITHUB_REF_NAME requires $expected. Bump the version files (or cut the tag from a commit where they match)."
+              failed=1
+            fi
+          done
+          exit $failed
 
   web:
     needs: meta
@@ -98,6 +139,8 @@ jobs:
         run: |
           mkdir -p ../dist
           (cd build/web && zip -qr "../../../dist/chatapp-web-$TAG.zip" .)
+      - name: Verify artifact
+        run: node ../scripts/validate-artifacts.mjs file "../dist/chatapp-web-$TAG.zip" --min-size 1000
       - uses: actions/upload-artifact@v7
         with:
           name: web
@@ -107,10 +150,17 @@ jobs:
   android:
     needs: meta
     runs-on: ubuntu-24.04
+    outputs:
+      # Consumed by the release notes: says whether the APK is release-signed.
+      signed: ${{ steps.keystore.outputs.provided == 'true' }}
     env:
       TAG: ${{ needs.meta.outputs.tag }}
       BUILD_NAME: ${{ needs.meta.outputs.name }}
       BUILD_NUMBER: ${{ needs.meta.outputs.number }}
+      # When the dispatch input demands production signing, gradle fails loudly
+      # if the keystore secrets are missing instead of silently shipping a
+      # debug-signed APK (app/android/app/build.gradle.kts).
+      ANDROID_REQUIRE_RELEASE_SIGNING: ${{ inputs.require_release_signing || 'false' }}
     defaults:
       run:
         working-directory: app
@@ -125,6 +175,22 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+      - id: keystore
+        name: Decode release keystore (when secrets are configured)
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            # Only the (non-secret) path goes through GITHUB_ENV; the passwords are
+            # handed to the build step's env directly from secrets below.
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "provided=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "provided=false" >> "$GITHUB_OUTPUT"
+            echo "No ANDROID_KEYSTORE_BASE64 secret: building a DEBUG-SIGNED APK (documented beta limitation)."
+          fi
       - run: flutter pub get
       - name: Dart defines
         shell: bash
@@ -133,11 +199,17 @@ jobs:
           printf '{"API_URL":"%s","WS_URL":"%s"}\n' "${API_URL:-http://localhost:4000}" "${WS_URL:-ws://localhost:4000/ws}" > defines.json
       - name: Build APK
         shell: bash
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: flutter build apk --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --dart-define-from-file=defines.json
       - name: Package
         run: |
           mkdir -p ../dist
           cp build/app/outputs/flutter-apk/app-release.apk "../dist/chatapp-android-$TAG.apk"
+      - name: Verify artifact
+        run: node ../scripts/validate-artifacts.mjs file "../dist/chatapp-android-$TAG.apk" --min-size 1000000
       - uses: actions/upload-artifact@v7
         with:
           name: android
@@ -170,11 +242,52 @@ jobs:
       - name: Build Windows
         shell: bash
         run: flutter build windows --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --dart-define-from-file=defines.json
-      - name: Package
+      - name: Verify build output before packaging
+        shell: pwsh
+        run: |
+          # Fail immediately when anything a runnable app needs is missing, before
+          # any ZIP exists to mislead anyone (repair brief §3).
+          $release = "build/windows/x64/runner/Release"
+          foreach ($required in @("chat_app.exe", "flutter_windows.dll")) {
+            if (-not (Test-Path (Join-Path $release $required) -PathType Leaf)) {
+              Write-Output "::error::Required file missing from Windows build: $required"
+              exit 1
+            }
+          }
+          if (-not (Test-Path (Join-Path $release "data") -PathType Container)) {
+            Write-Output "::error::Required directory missing from Windows build: data/"
+            exit 1
+          }
+          node ../scripts/validate-artifacts.mjs windows-build $release
+      - name: Package (ChatApp/ wrapper)
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path ../dist | Out-Null
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "../dist/chatapp-windows-x64-$env:TAG.zip"
+          $stage = Join-Path $env:RUNNER_TEMP "chatapp-windows-stage"
+          if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+          New-Item -ItemType Directory -Force -Path (Join-Path $stage "ChatApp") | Out-Null
+          Copy-Item -Path "build/windows/x64/runner/Release/*" -Destination (Join-Path $stage "ChatApp") -Recurse -Force
+          Compress-Archive -Path (Join-Path $stage "ChatApp") -DestinationPath "../dist/chatapp-windows-x64-$env:TAG.zip"
+      - name: Verify the ZIP contains a runnable app
+        shell: pwsh
+        run: |
+          # Never trust the packaging step: extract the archive and validate what
+          # came out of it (repair brief §3, steps 1–7).
+          $zip = "../dist/chatapp-windows-x64-$env:TAG.zip"
+          if (-not (Test-Path $zip -PathType Leaf)) {
+            Write-Output "::error::Windows ZIP was not created."
+            exit 1
+          }
+          if ((Get-Item $zip).Length -le 0) {
+            Write-Output "::error::Windows ZIP is empty."
+            exit 1
+          }
+          $extract = Join-Path $env:RUNNER_TEMP "chatapp-windows-zip-verify"
+          if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
+          Expand-Archive -Path $zip -DestinationPath $extract
+          # Checks chat_app.exe, flutter_windows.dll, data/ (incl. flutter_assets),
+          # non-zero exe size, and the ChatApp/ wrapper — inside the archive.
+          node ../scripts/validate-artifacts.mjs windows-zip $extract
       - uses: actions/upload-artifact@v7
         with:
           name: windows
@@ -192,7 +305,7 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install Linux toolchain
         run: |
           sudo apt-get update
@@ -215,7 +328,9 @@ jobs:
         run: |
           mkdir -p ../dist
           tar -czf "$GITHUB_WORKSPACE/dist/chatapp-linux-x64-$TAG.tar.gz" -C build/linux/x64/release/bundle .
-      - uses: actions/upload-artifact@v6
+      - name: Verify artifact
+        run: node ../scripts/validate-artifacts.mjs file "$GITHUB_WORKSPACE/dist/chatapp-linux-x64-$TAG.tar.gz" --min-size 1000000
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: dist/*
@@ -232,7 +347,7 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -255,7 +370,9 @@ jobs:
           # An absolute destination (rather than counting "../" levels back out of the
           # subshell's cd) avoided an off-by-one that broke this the first time.
           (cd build/macos/Build/Products/Release && zip -qry "$GITHUB_WORKSPACE/dist/chatapp-macos-$TAG.zip" *.app)
-      - uses: actions/upload-artifact@v6
+      - name: Verify artifact
+        run: node ../scripts/validate-artifacts.mjs file "$GITHUB_WORKSPACE/dist/chatapp-macos-$TAG.zip" --min-size 1000000
+      - uses: actions/upload-artifact@v7
         with:
           name: macos
           path: dist/*
@@ -268,22 +385,48 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       LOCALHOST: ${{ needs.meta.outputs.localhost }}
+      TAG: ${{ needs.meta.outputs.tag }}
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
       - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
+      - name: Verify every artifact independently
+        run: |
+          # Belt and braces: the per-job checks already ran, but nothing ships
+          # until the final dist is re-validated as a whole (repair brief §19).
+          node scripts/validate-artifacts.mjs file "dist/chatapp-web-$TAG.zip" --min-size 1000
+          node scripts/validate-artifacts.mjs file "dist/chatapp-android-$TAG.apk" --min-size 1000000
+          node scripts/validate-artifacts.mjs file "dist/chatapp-windows-x64-$TAG.zip" --min-size 1000000
+          node scripts/validate-artifacts.mjs file "dist/chatapp-linux-x64-$TAG.tar.gz" --min-size 1000000
+          node scripts/validate-artifacts.mjs file "dist/chatapp-macos-$TAG.zip" --min-size 1000000
+          # Re-verify the Windows ZIP content from the release job too: extract and
+          # check chat_app.exe / flutter_windows.dll / data/ inside the archive.
+          mkdir -p windows-zip-verify
+          unzip -q "dist/chatapp-windows-x64-$TAG.zip" -d windows-zip-verify
+          node scripts/validate-artifacts.mjs windows-zip windows-zip-verify
       - name: Checksums and notes
         run: |
           cd dist
           sha256sum * > SHA256SUMS.txt
+          cd ..
+          # Full dist validation (all five artifacts + checksum coverage for each).
+          node scripts/validate-artifacts.mjs release-dist dist --tag "$TAG"
           {
             echo "Web, Android (APK), Windows (x64), Linux (x64) and macOS (unsigned) builds. iOS is not included."
             echo
-            echo "- **Android APK** is signed with a CI debug key: install by sideloading; it cannot be updated in place and is not Play Store ready."
-            echo "- **Windows** is an unsigned portable zip (SmartScreen will warn). Unzip and run \`chat_app.exe\`."
+            if [[ "${{ needs.android.outputs.signed }}" == "true" ]]; then
+              echo "- **Android APK** is release-signed with the configured keystore."
+            else
+              echo "- **Android APK** is signed with a CI debug key: install by sideloading; it cannot be updated in place and is not Play Store ready. Configure the ANDROID_KEYSTORE_* secrets for release signing."
+            fi
+            echo "- **Windows** is an unsigned portable zip (SmartScreen will warn). Unzip and run \`ChatApp\\chat_app.exe\` — the zip always contains the complete application (\`chat_app.exe\`, \`flutter_windows.dll\`, \`data/\`)."
             echo "- **Linux** is an unsigned tar.gz; extract and run \`chat_app\`. Needs the GTK/libsecret runtime libraries (present on most desktop distros)."
             echo "- **macOS** is an unsigned, non-notarized \`.app\` zip: Gatekeeper will refuse to open it from a normal double-click. Either right-click → Open → Open anyway, or \`xattr -dr com.apple.quarantine chat_app.app\` first."
             echo "- **Web** is a static bundle; host it yourself."
@@ -291,7 +434,7 @@ jobs:
             if [[ "$LOCALHOST" == "true" ]]; then
               echo "- **Backend URL was not configured**: these builds point at \`localhost\`."
             fi
-          } > ../notes.md
+          } > notes.md
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           draft: true
