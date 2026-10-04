@@ -13,6 +13,7 @@ import { isUniqueConstraintError } from '../lib/prisma-errors.js';
 import { env } from '../config/env.js';
 import { wsHub } from '../realtime/ws-hub.js';
 import { sendPasswordResetEmail } from './email.service.js';
+import type { Mailer } from '../lib/mailer.js';
 import crypto from 'node:crypto';
 
 export type AuthTokens = { accessToken: string; refreshToken: string };
@@ -232,8 +233,14 @@ export function canExposeRawResetToken(nodeEnv: string): boolean {
  * curl-testing and for tests, which need the raw token to drive
  * resetPassword() without an email provider. It is never computed, logged, or returned in
  * production.
+ *
+ * `mailer` exists so tests can capture the outgoing message without a transport;
+ * production and the SMTP path both use the default delivery below.
  */
-export async function requestPasswordReset(email: string): Promise<{ resetToken: string } | void> {
+export async function requestPasswordReset(
+  email: string,
+  mailer?: Mailer,
+): Promise<{ resetToken: string } | void> {
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   // Always succeeds from the caller's perspective — see docs/api-contract.md §3.1,
   // this must not reveal whether the address is registered.
@@ -276,12 +283,23 @@ export async function requestPasswordReset(email: string): Promise<{ resetToken:
   // Deliver before deciding whether the raw token may be surfaced: development and
   // production use the same path, so a misconfigured mailer is caught here in dev
   // too rather than only after a deploy.
-  await sendPasswordResetEmail({
-    to: user.email,
-    displayName: user.displayName,
-    resetToken: rawToken,
-    expiresInMinutes: env.PASSWORD_RESET_TOKEN_TTL_MINUTES,
-  });
+  if (mailer) {
+    try {
+      await mailer.sendPasswordReset(user.email, rawToken);
+    } catch (err) {
+      // Never the provider's message: SMTP/API errors can quote the recipient
+      // address or credentials. A bounce must neither 500 nor reveal that the
+      // address exists (contract §3.1) — the endpoint still answers 202.
+      console.error('[mail] password reset email failed to send:', err instanceof Error ? err.name : 'unknown');
+    }
+  } else {
+    await sendPasswordResetEmail({
+      to: user.email,
+      displayName: user.displayName,
+      resetToken: rawToken,
+      expiresInMinutes: env.PASSWORD_RESET_TOKEN_TTL_MINUTES,
+    });
+  }
 
   if (!canExposeRawResetToken(env.NODE_ENV)) {
     return; // Production: the token exists only as a hash from this point on.
