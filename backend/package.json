@@ -28,7 +28,7 @@
     "express-rate-limit": "8.7.0",
     "helmet": "8.0.0",
     "jsonwebtoken": "9.0.3",
-    "nodemailer": "^6.9.16",
+    "nodemailer": "10.0.14",
     "ws": "8.22.0",
     "zod": "3.24.1"
   },
@@ -38,7 +38,7 @@
     "@types/express": "4.17.21",
     "@types/jsonwebtoken": "9.0.10",
     "@types/node": "22.10.5",
-    "@types/nodemailer": "^6.4.17",
+    "@types/nodemailer": "^8.0.2",
     "@types/supertest": "6.0.2",
     "@types/ws": "8.18.1",
     "eslint": "10.11.0",
