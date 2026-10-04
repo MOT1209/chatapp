@@ -210,6 +210,8 @@ Full rules in [`docs/git-workflow.md`](docs/git-workflow.md). Summary:
 ## Documentation
 
 - [`CHANGELOG.md`](CHANGELOG.md) — what shipped in each release.
+- [`docs/DEVELOPMENT_AUDIT.md`](docs/DEVELOPMENT_AUDIT.md) — Phase 0 audit of `v0.0.1-alpha` and its status update. Historical baseline.
+- [`docs/PHASE1_AUDIT.md`](docs/PHASE1_AUDIT.md) — Phase 1 audit: what was broken, what was fixed, what is still open, and what could not be verified in that environment.
 - [`docs/api-contract.md`](docs/api-contract.md) — HTTP + WebSocket contract (source of truth).
 - [`docs/architecture.md`](docs/architecture.md) — system shape and boundaries.
 - [`docs/development.md`](docs/development.md) — setup and daily commands.
