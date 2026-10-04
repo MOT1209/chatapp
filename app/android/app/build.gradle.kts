@@ -31,9 +31,47 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Release signing is configured entirely through environment variables
+            // (CI secrets — never committed): ANDROID_KEYSTORE_PATH,
+            // ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+            // When all four are present the APK is release-signed; otherwise it
+            // falls back to the debug key, which is a documented beta limitation
+            // (docs/development.md → Releases), unless ANDROID_REQUIRE_RELEASE_SIGNING
+            // is set — e.g. by CI on demand — in which case the build fails loudly
+            // instead of silently shipping a debug-signed "release".
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            val keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+            val keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            val allSecretsPresent =
+                !keystorePath.isNullOrBlank() &&
+                    !keystorePassword.isNullOrBlank() &&
+                    !keyAlias.isNullOrBlank() &&
+                    !keyPassword.isNullOrBlank()
+
+            if (allSecretsPresent) {
+                signingConfigs {
+                    create("release") {
+                        storeFile = file(keystorePath)
+                        storePassword = keystorePassword
+                        keyAlias = keyAlias
+                        keyPassword = keyPassword
+                    }
+                }
+                signingConfig = signingConfigs.getByName("release")
+            } else if (System.getenv("ANDROID_REQUIRE_RELEASE_SIGNING") == "true") {
+                throw GradleException(
+                    "ANDROID_REQUIRE_RELEASE_SIGNING=true but the release signing environment is incomplete. " +
+                        "Set ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD " +
+                        "(in CI these come from the ANDROID_KEYSTORE_* secrets). No key material is committed to the repository.",
+                )
+            } else {
+                println(
+                    "WARNING: building a DEBUG-SIGNED release APK. Fine for beta sideloading; " +
+                        "not Play Store ready and not updatable in place. Configure the ANDROID_KEYSTORE_* secrets for real signing.",
+                )
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }

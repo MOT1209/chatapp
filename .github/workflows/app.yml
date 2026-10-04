@@ -5,16 +5,30 @@ on:
     branches: [main]
     paths:
       - 'app/**'
+      - 'scripts/**'
       - '.github/workflows/app.yml'
   pull_request:
     paths:
       - 'app/**'
+      - 'scripts/**'
       - '.github/workflows/app.yml'
 
 env:
   FLUTTER_VERSION: 3.47.5
 
 jobs:
+  # The release-validation scripts (URL validator, artifact validator) are plain
+  # Node with no dependencies: their tests run anywhere, on every app/scripts PR.
+  release-tooling:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Test release validation scripts
+        run: node --test scripts/validate-release-urls.test.mjs scripts/validate-artifacts.test.mjs
+
   ci:
     runs-on: ubuntu-24.04
     defaults:
