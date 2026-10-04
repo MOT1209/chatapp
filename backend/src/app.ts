@@ -1,6 +1,6 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
-import { env } from './config/env.js';
+import { env, trustProxy } from './config/env.js';
 import healthRouter from './routes/health.js';
 import apiRouter from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
@@ -10,7 +10,11 @@ import { requestContext } from './middleware/request-context.js';
 export function createApp(): Express {
   const app = express();
 
-  app.set('trust proxy', 1);
+  // Proxy hop count comes from configuration (TRUST_PROXY). Every per-IP rate
+  // limiter keys on `req.ip`, which Express derives from this, so a wrong value
+  // would either let a client spoof its address past the auth limiters or put
+  // every user behind the proxy into a single shared bucket.
+  app.set('trust proxy', trustProxy);
   // First middleware: every request — even ones that error out early — gets an
   // X-Request-Id response header and one structured log line (§17).
   app.use(requestContext());

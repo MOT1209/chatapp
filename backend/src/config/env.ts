@@ -33,11 +33,43 @@ function envFlag(value: string): boolean {
   return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
 }
 
+/**
+ * True for a database that provably lives on this machine.
+ *
+ * Only used to decide whether `NODE_ENV=test` is acceptable. Deliberately
+ * permissive about the parts that do not matter (scheme, port, query string) and
+ * strict about the host, because the host is what tells us whether a mistake can
+ * reach a real deployment. An unparseable URL is treated as non-loopback so that
+ * a typo fails closed rather than open.
+ */
+function isLoopbackDatabaseUrl(databaseUrl: string): boolean {
+  try {
+    const { hostname } = new URL(databaseUrl);
+    const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0';
+  } catch {
+    return false;
+  }
+}
+
 const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(4000),
     CORS_ORIGIN: z.string().default('http://localhost:5173'),
+    /**
+     * How many reverse proxies sit in front of the app. Express derives `req.ip`
+     * from this, and every per-IP rate limiter keys on `req.ip`, so a wrong value
+     * is not cosmetic: too high and a client can spoof its own address in
+     * `X-Forwarded-For` and walk straight past the auth limiters; too low and every
+     * user shares the proxy's address, so one abusive client locks out everyone
+     * behind it. `1` is correct for the single-proxy deployments this app targets;
+     * set `0` for a directly exposed server.
+     */
+    TRUST_PROXY: z
+      .string()
+      .regex(/^\d+$/, 'TRUST_PROXY must be a non-negative integer (the number of proxy hops).')
+      .default('1'),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
     JWT_ACCESS_SECRET: z.string().min(1, 'JWT_ACCESS_SECRET is required'),
     JWT_REFRESH_SECRET: z.string().min(1, 'JWT_REFRESH_SECRET is required'),
@@ -78,15 +110,44 @@ const EnvSchema = z
      */
     PASSWORD_RESET_COOLDOWN_SECONDS: z.coerce.number().int().min(0).max(3600).default(300),
     PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(1440).default(60),
+
+    // --- Maintenance job (`npm run cleanup`, see src/scripts/cleanup.ts) ---
+    /**
+     * Rows deleted per statement. Bounded so a large backlog cannot turn into one
+     * huge DELETE that pins locks and bloats the WAL; a bigger backlog is drained
+     * across consecutive batches instead.
+     */
+    CLEANUP_BATCH_SIZE: z.coerce.number().int().min(1).max(10_000).default(500),
+    /**
+     * How long *revoked* sessions are kept before deletion. Sessions that are
+     * already past `expiresAt` are always deleted regardless. The window exists so
+     * a session can still be investigated after an incident.
+     */
+    SESSION_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
+    /** How long *used* password-reset tokens are kept. Expired ones always go. */
+    RESET_TOKEN_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
   })
   .superRefine((data, ctx) => {
     const issue = (field: string, message: string): void => {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message });
     };
 
-    // Weak secrets are a real risk only once this config is what a live
-    // service trusts. development and test explicitly allow throwaway
-    // values — see backend/.env.example and vitest.config.ts.
+    // Weak secrets are a real risk only once this config is what a live service
+    // trusts. development and test explicitly allow throwaway values — see
+    // backend/.env.example and vitest.config.ts.
+    //
+    // NODE_ENV=test silently switches off every rate limiter (see
+    // middleware/rate-limit.ts) and relaxes the secret checks below. The test suite
+    // needs that, but a deployment that inherited it would ship the API with no auth
+    // throttling at all. A non-loopback database is the reliable signal that this is
+    // not a developer's own machine, so refuse that combination outright.
+    if (data.NODE_ENV === 'test' && !isLoopbackDatabaseUrl(data.DATABASE_URL)) {
+      issue(
+        'NODE_ENV',
+        'NODE_ENV=test disables every rate limiter and weakens the secret checks, so it is only safe against a local database. Refusing to start with NODE_ENV=test and a non-loopback DATABASE_URL.',
+      );
+    }
+
     if (data.NODE_ENV !== 'production') {
       // A half-configured credential pair is still wrong everywhere: the provider
       // rejects the handshake and every reset email bounces. But the *presence* of
@@ -165,5 +226,8 @@ export const cookieOptions = {
 
 /** Whether a usable outbound mail transport is configured. */
 export const smtpConfigured = Boolean(env.SMTP_HOST && env.SMTP_PORT && env.SMTP_FROM);
+
+/** Express `trust proxy` setting, as the numeric hop count it is validated to be. */
+export const trustProxy = Number(env.TRUST_PROXY);
 
 export { envFlag };
