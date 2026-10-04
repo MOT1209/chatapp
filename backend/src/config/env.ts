@@ -1,4 +1,4 @@
-﻿import 'dotenv/config';
+import 'dotenv/config';
 import { z } from 'zod';
 import { loadSecretFiles } from './secrets.js';
 
@@ -44,16 +44,10 @@ const EnvSchema = z
     JWT_ACCESS_TTL: z.string().default('15m'),
     JWT_REFRESH_TTL: z.string().default('30d'),
     BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
-    // Email (optional). Password-reset mail is sent only when both are set;
-    // otherwise the reset endpoint still works but sends nothing (see lib/mailer.ts).
-    RESEND_API_KEY: z.string().optional(),
-    MAIL_FROM: z.string().optional(),
-    // Optional web client origin; when set, reset emails also include a clickable link.
-    APP_WEB_URL: z.string().url().optional(),
 
     /**
      * Public origin of this service, used only to build the password-reset link in
-     * the outgoing email. No trailing slash â€” it is concatenated with `/reset-password`.
+     * the outgoing email. No trailing slash — it is concatenated with `/reset-password`.
      */
     APP_BASE_URL: z.string().default('http://localhost:4000'),
 
@@ -92,7 +86,7 @@ const EnvSchema = z
 
     // Weak secrets are a real risk only once this config is what a live
     // service trusts. development and test explicitly allow throwaway
-    // values â€” see backend/.env.example and vitest.config.ts.
+    // values — see backend/.env.example and vitest.config.ts.
     if (data.NODE_ENV !== 'production') {
       // A half-configured credential pair is still wrong everywhere: the provider
       // rejects the handshake and every reset email bounces. But the *presence* of
@@ -121,7 +115,7 @@ const EnvSchema = z
       if (isWeakSecret(data[field])) {
         issue(
           field,
-          `${field} is missing, too short, or a known placeholder. Production requires a long, random secret â€” generate one with: openssl rand -base64 48`,
+          `${field} is missing, too short, or a known placeholder. Production requires a long, random secret — generate one with: openssl rand -base64 48`,
         );
       }
     }
@@ -151,7 +145,7 @@ const parsed = EnvSchema.safeParse(process.env);
 
 if (!parsed.success) {
   // Zod's fieldErrors carry only field names and messages, never the offending
-  // value â€” safe to log even when the failure is about a weak secret.
+  // value — safe to log even when the failure is about a weak secret.
   console.error('Invalid environment configuration:', parsed.error.flatten().fieldErrors);
   throw new Error('Invalid environment configuration');
 }
@@ -164,8 +158,8 @@ export const cookieOptions = {
   secure: env.NODE_ENV === 'production' || envFlag(env.COOKIE_SECURE ?? ''),
   sameSite: env.COOKIE_SAME_SITE,
   path: env.COOKIE_PATH,
-  // The refresh token must never be readable from script â€” that is the entire
-  // point of moving it out of JS reach (contract آ§3.1.1).
+  // The refresh token must never be readable from script — that is the entire
+  // point of moving it out of JS reach (contract §3.1.1).
   httpOnly: true,
 } as const;
 

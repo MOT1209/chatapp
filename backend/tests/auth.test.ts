@@ -6,6 +6,7 @@ import { buildTestApp, registerUser } from './helpers/test-app.js';
 import { resetDb } from './helpers/db.js';
 import { prisma } from '../src/lib/prisma.js';
 import * as authService from '../src/services/auth.service.js';
+import * as emailService from '../src/services/email.service.js';
 
 let app: Express;
 
@@ -373,36 +374,38 @@ describe('POST /api/auth/forgot-password — token supersession', () => {
 });
 
 describe('POST /api/auth/forgot-password — email delivery', () => {
-  it('sends the freshly created token to the registered address via the mailer', async () => {
+  /**
+   * Delivery itself (SMTP transport, cooldown, failure handling) is pinned in
+   * tests/password-reset-mail.test.ts. These tests pin the *seam*: the service
+   * hands the freshly minted token to the email service exactly once, for
+   * registered addresses only.
+   */
+  it('hands the freshly created token to the email service for the registered address', async () => {
     await registerUser(app, { email: 'mailme@example.com' });
-    const sent: Array<{ to: string; token: string }> = [];
-    const mailer = { sendPasswordReset: async (to: string, token: string) => void sent.push({ to, token }) };
+    const sendSpy = vi.spyOn(emailService, 'sendPasswordResetEmail').mockResolvedValue(true);
 
-    const result = await authService.requestPasswordReset('mailme@example.com', mailer);
+    const result = await authService.requestPasswordReset('mailme@example.com');
 
-    expect(sent).toHaveLength(1);
-    expect(sent[0]!.to).toBe('mailme@example.com');
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    const call = sendSpy.mock.calls[0]![0];
+    expect(call.to).toBe('mailme@example.com');
     // The emailed token is exactly the one the caller can later redeem.
-    expect(sent[0]!.token).toBe(result?.resetToken);
+    expect(call.resetToken).toBe(result?.resetToken);
   });
 
   it('sends nothing for an unknown address, and never throws (no enumeration)', async () => {
-    const sent: string[] = [];
-    const mailer = { sendPasswordReset: async (to: string) => void sent.push(to) };
-    await expect(authService.requestPasswordReset('ghost@example.com', mailer)).resolves.toBeUndefined();
-    expect(sent).toEqual([]);
+    const sendSpy = vi.spyOn(emailService, 'sendPasswordResetEmail').mockResolvedValue(true);
+    await expect(authService.requestPasswordReset('ghost@example.com')).resolves.toBeUndefined();
+    expect(sendSpy).not.toHaveBeenCalled();
   });
 
-  it('still returns 202 when the mail provider fails', async () => {
+  it('still resolves when the email service reports a failure — a bounce is not a 500', async () => {
     await registerUser(app, { email: 'flaky@example.com' });
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const failing = { sendPasswordReset: async () => { throw new Error('provider down'); } };
-    try {
-      await expect(authService.requestPasswordReset('flaky@example.com', failing)).resolves.toBeDefined();
-      expect(errSpy).toHaveBeenCalled();
-    } finally {
-      errSpy.mockRestore();
-    }
+    vi.spyOn(emailService, 'sendPasswordResetEmail').mockResolvedValue(false);
+
+    // email.service swallows provider failures and returns false; the reset flow
+    // must keep answering identically either way (contract §3.1/§6.6).
+    await expect(authService.requestPasswordReset('flaky@example.com')).resolves.toBeDefined();
   });
 });
 
