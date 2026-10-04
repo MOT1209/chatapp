@@ -52,7 +52,7 @@ async function unreadCounts(conversationIds: string[], userId: string): Promise<
 }
 
 export type ConversationListOptions = {
-  /** Opaque cursor from a previous page's `nextCursor`. */
+  /** Opaque cursor from a previous page's `nextCursor`, as a plaintext string. */
   cursor?: string | null;
   /** Page size; validated upstream (1–100). Default 50. */
   limit?: number;

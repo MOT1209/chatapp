@@ -1,12 +1,19 @@
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
+import { validationError } from '../lib/errors.js';
 import * as conversationService from '../services/conversation.service.js';
 import * as messageService from '../services/message.service.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import type { ListConversationsQuery, MessagesQuery } from '../validators/conversations.validators.js';
+import { decodeCursor } from '../lib/cursor.js';
 
 export const listHandler = asyncHandler(async (req: Request, res: Response) => {
   const { cursor, limit } = res.locals.query as ListConversationsQuery;
-  const page = await conversationService.listForUser(req.userId!, { cursor: cursor ?? null, limit });
+  const rawCursor = cursor;
+  const messageCursor = rawCursor ? decodeCursor(rawCursor) : null;
+  if (rawCursor && !messageCursor) {
+    throw validationError({ cursor: 'Invalid cursor.' });
+  }
+  const page = await conversationService.listForUser(req.userId!, { cursor: rawCursor ?? null, limit });
   res.status(200).json(page);
 });
 
@@ -18,10 +25,15 @@ export const createHandler = asyncHandler(async (req: Request, res: Response) =>
 
 export const messagesHandler = asyncHandler(async (req: Request, res: Response) => {
   const { cursor, limit } = res.locals.query as MessagesQuery;
+  const rawCursor = cursor;
+  const messageCursor = rawCursor ? decodeCursor(rawCursor) : null;
+  if (rawCursor && !messageCursor) {
+    throw validationError({ cursor: 'Invalid cursor.' });
+  }
   const page = await conversationService.getMessages(
     req.userId!,
     req.params.id as string,
-    cursor ?? null,
+    messageCursor as string | null,
     limit,
   );
   res.status(200).json(page);
