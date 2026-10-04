@@ -161,9 +161,14 @@ Success response:
 {
   "user": { "id": "...", "username": "ahmad", "email": "ahmad@example.com", "displayName": "Ahmad", "avatarUrl": null, "isOnline": false, "lastSeenAt": null, "createdAt": "2026-09-28T10:00:00.000Z" },
   "accessToken": "eyJhbGciOi...",
-  "refreshToken": "eyJhbGciOi..."
+  "refreshToken": "eyJhbGciOi...",
+  "csrfToken": "0f3c…"
 }
 ```
+
+Also sets `Set-Cookie: chatapp_rt=<refreshToken>` (see §3.1.1). A browser that sends
+`X-Client-Platform: web` gets the same response **without** `refreshToken` in the body
+(see §3.1.2).
 
 Errors: `VALIDATION_ERROR` (400), `CONFLICT` (409) when username or email is taken.
 
@@ -183,21 +188,105 @@ Errors: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401).
 
 > Deliberately returns the same error for "unknown user" and "wrong password" so the endpoint cannot be used to enumerate accounts.
 
+#### 3.1.1 Refresh cookie and CSRF (web clients)
+
+The web build keeps the refresh token in an `HttpOnly` cookie so that JavaScript
+running on the origin — an injected script, a compromised dependency, an XSS in
+any bundled library — cannot read it. `localStorage` is readable by any such
+script, so nothing long-lived goes there.
+
+Cookie: `chatapp_rt=<refreshToken>`, set on register, login and refresh, and
+cleared on logout and password reset.
+
+| Attribute | Value |
+| --- | --- |
+| `HttpOnly` | always |
+| `Secure` | in production |
+| `SameSite` | `Lax` by default; configurable |
+| `Path` | `/api/auth` |
+| `Max-Age` | matches the refresh token lifetime |
+
+Because that cookie is ambient authority, every request that relies on it must
+also echo `X-CSRF-Token`. The token is an HMAC of the refresh token keyed by
+`JWT_REFRESH_SECRET`, so it is derivable server-side and can be re-issued by
+`GET /api/auth/csrf` after a page reload. The client holds it in memory only.
+
+Cross-origin web deployments must send the cookie (`credentials: 'include'`) and
+the API answers with an exact-origin CORS allowlist — never `*` — plus
+`Access-Control-Allow-Credentials: true`. A wildcard is rejected at startup.
+
+#### `GET /api/auth/csrf` → 200
+
+Returns a CSRF token matching the caller's current refresh cookie, for a client
+that has to rebuild its session after a reload (the cookie survived, the
+in-memory access token and CSRF token did not).
+
+```json
+{ "csrfToken": "0f3c…" }
+```
+
+Errors: `UNAUTHENTICATED` (401) when there is no usable refresh cookie. Reading
+the session does not rotate or revoke it.
+
 #### `POST /api/auth/refresh` → 200
 
-Request:
+Request, native client:
 
 ```json
 { "refreshToken": "eyJhbGciOi..." }
 ```
 
+Request, web client: **no body at all.** The cookie is sent automatically and
+`X-CSRF-Token` is required.
+
+| Sent | Accepted |
+| --- | --- |
+| `refreshToken` in the body, no cookie | ✅ native clients, unchanged |
+| `X-CSRF-Token` + `chatapp_rt` cookie, no body | ✅ web clients |
+| cookie **and** body | ✅ body wins, but the cookie's presence still requires a matching `X-CSRF-Token` |
+| cookie, no `X-CSRF-Token` | ❌ 401 `UNAUTHENTICATED` — this is the forged-request case |
+| `{ "refreshToken": "" }` | ❌ 400 `VALIDATION_ERROR` |
+
 Success response — **both** tokens are returned, because the backend is free to rotate the refresh token:
 
 ```json
-{ "accessToken": "eyJhbGciOi...", "refreshToken": "eyJhbGciOi..." }
+{ "accessToken": "eyJ...", "refreshToken": "eyJ...", "csrfToken": "0f3c…" }
 ```
 
+Both the cookie and the body's refresh token are rotated together, and the
+returned `csrfToken` matches the new value.
+
+A failed CSRF check does **not** consume the session, so a real client whose
+token went stale is not locked out.
+
 Errors: `UNAUTHENTICATED` (401) when the refresh token is missing, malformed, expired or revoked.
+
+#### 3.1.2 Cookie transport — `X-Client-Platform: web`
+
+A server cannot tell a browser from a native app by looking at `POST /auth/login`:
+both send the same JSON, and only the browser honours `Set-Cookie`. So the client
+says which one it is, and the server shapes the response to match.
+
+| Header on register / login / refresh | Body contains `refreshToken` | Why |
+| --- | --- | --- |
+| `X-Client-Platform: web` | ❌ omitted | the token is already in the `HttpOnly` cookie; a body copy is readable by any script on the page, so it is exfiltratable regardless of what the client does with it |
+| absent | ✅ as before | native has no cookie jar, so the body is its only copy of the credential |
+
+The `Set-Cookie` header is sent in **both** cases, so a web client that forgets the
+header on one call still has a working cookie. The bet is one-directional: a client
+that lies can only withhold the token from itself, and a client that never sends the
+header (every native build released so far) behaves exactly as it did.
+
+```json
+// X-Client-Platform: web
+{ "accessToken": "eyJ...", "csrfToken": "0f3c…" }
+
+// no header (native)
+{ "accessToken": "eyJ...", "refreshToken": "eyJ...", "csrfToken": "0f3c…" }
+```
+
+The value is compared case-insensitively after trimming; anything else is treated as
+"not a browser" rather than guessed at.
 
 #### `POST /api/auth/logout` → 204
 
@@ -205,7 +294,8 @@ Errors: `UNAUTHENTICATED` (401) when the refresh token is missing, malformed, ex
 The caller is identified by whichever of these it sends (either or both):
 
 - `Authorization: Bearer <accessToken>` — while it is still valid.
-- An optional JSON body `{ "refreshToken": "<token>" }` — **additive since the post-Alpha hardening; older clients that send no body keep working.** This is what makes logout work after the 15-minute access token has expired, which is the normal case for a user who returns after a pause. The frontend sends it on every logout.
+- An optional JSON body `{ "refreshToken": "<token>" }` — **additive since the post-Alpha hardening; older clients that send no body keep working.** This is what makes logout work after the 15-minute access token has expired, which is the normal case for a user who returns after a pause.
+- The `chatapp_rt` cookie plus `X-CSRF-Token` — what the web client sends.
 
 Every identity found has all its active sessions revoked at once. There is no
 per-device "log out this device only" in v1 — logging out on a phone also
@@ -213,9 +303,13 @@ signs out the desktop client, the web tab, everything.
 
 The frontend clears local storage and returns to the login screen regardless
 of what the server did. A failure here must not block logout on the client.
-The endpoint **always** responds 204: a missing, expired, unknown or malformed
-token or body is not an error and identifies no one (it never affects another
-user's sessions).
+The endpoint **always** responds 204 and always clears the cookie: a missing,
+expired, unknown or malformed token or body is not an error and identifies no
+one (it never affects another user's sessions).
+
+> A logout request that carries a cookie **without** a valid `X-CSRF-Token` clears
+> the cookie and returns 204 but does **not** revoke anything. The request is
+> untrusted, so acting on it would let a third-party site sign the user out.
 
 > Limitation that remains: an access token that was already issued stays valid
 > until it expires (up to 15 minutes) even after logout, because it is a
@@ -230,6 +324,22 @@ Request:
 ```
 
 Response body: `{}` — always HTTP 202, **whether or not the email exists**. The frontend shows the same confirmation either way, so the endpoint cannot be used to discover which addresses are registered.
+
+The reset link is emailed, not returned. It points at
+`APP_BASE_URL/reset-password?token=…`.
+
+Two rate limits apply, both invisible to the caller:
+
+- **Per-account cooldown** (`PASSWORD_RESET_COOLDOWN_SECONDS`): a second request for
+  the same address is silently ignored and mints no new token, so no unusable link
+  is ever created. One abuser cannot lock any other account out.
+- **Unknown addresses send no mail at all**, which keeps the endpoint from being used
+  as a spam amplifier against arbitrary third parties.
+
+SMTP must be configured in production; the API refuses to start without it. A
+mail that fails to send is logged without the token or the provider's error text
+and the endpoint still answers 202 — a bounce must never become a 500 that tells
+an attacker the address exists.
 
 #### `POST /api/auth/reset-password` → 204
 
@@ -523,9 +633,24 @@ Shared with the backend developer so both sides know how the client behaves.
 
 ### 5.1 Token handling
 
-1. On boot the client reads its token storage, then calls `GET /api/users/me` to confirm the token is still valid.
+1. On boot the client reads its token storage, then calls `GET /api/users/me` to confirm the token is still valid. On web it first calls `GET /api/auth/csrf` and refreshes, because only the access token survives a reload — the refresh cookie and the in-memory CSRF token have to be re-adopted.
 2. On any `401 TOKEN_EXPIRED`, the frontend calls `POST /api/auth/refresh` once and retries the original request. Concurrent 401s share a single refresh call.
 3. If refresh fails, it clears storage and returns to `/login`. It does **not** retry in a loop.
+
+What the client stores differs by platform, and the client decides by asking its
+token storage rather than by checking the platform, so both paths are testable:
+
+| | Native (Android/iOS/Desktop) | Web |
+| --- | --- | --- |
+| Access token | OS credential store | `localStorage` (15 min, acceptable) |
+| Refresh token | OS credential store | **not stored** — `HttpOnly` cookie |
+| CSRF token | not needed | memory only, re-fetched on boot |
+| Refresh call | `refreshToken` in the body | no body, `X-CSRF-Token` header |
+| Requests | no credentials mode | `credentials: 'include'` |
+| Token requests | no extra header | `X-Client-Platform: web`, so the server omits `refreshToken` from the body |
+
+An older build left the refresh token in web `localStorage`; the client deletes
+that key on boot so the old secret cannot sit there forever.
 
 ### 5.2 Sending a message
 
@@ -558,9 +683,9 @@ These are not blocking the frontend. Confirm when convenient.
 3. **Message editing** — still not in v1. **Deletion** was added — see §3.4.1 — because Alpha v0.0.1's backend task required it; the frontend doesn't need to call it to keep working, but should adopt `DELETE .../messages/:messageId` and the `deletedAt` field when convenient.
 4. **Registration open or invite-only** — v1 assumes open registration. If it must be invite-only, say so and the frontend will hide the register link.
 5. **Rate limit values (concrete numbers)** — implemented as: register/login/forgot-password/reset-password 20 requests / 15 min per IP; user search 30 requests / min per authenticated user; message send 60 requests / min per authenticated user. These are Alpha judgment calls, not requirements — tell the backend if the UI needs them adjusted.
-6. **Forgot/reset password email delivery** — `forgot-password` generates and stores a reset token (its hash only — see §2.1's session/token storage note) and emails it when a mail provider is configured (set `RESEND_API_KEY` and `MAIL_FROM`; see `backend/src/lib/mailer.ts`). With no provider set, nothing is sent and the endpoint still behaves exactly as below. A provider failure is logged server-side and swallowed, so it neither returns 5xx nor reveals whether the address is registered. Independently of delivery, the raw token's only path out of the server is environment-gated by `NODE_ENV`:
-   - **development**: logged to the server console (`[dev-only] Password reset token for <email>: <token>`) so the flow is testable end to end locally without an email provider.
-   - **test**: never logged; test code reads it from the service function's return value instead (`requestPasswordReset` returns `{ resetToken }` outside production).
-   - **production**: never logged, never returned, never included in the HTTP response body — the token exists only as a hash in the database from the moment it's created. There is currently no way to complete a production password reset without wiring up a real email provider first, which is deliberate: shipping a working reset flow with nowhere secure to send the token would be worse than not shipping one.
-
-   The endpoints behave per spec regardless of environment; only the token's *delivery channel* differs. The emailed token is the same 64-char value stored as a hash — high-entropy, so it is pasted into the reset form (or opened via an `APP_WEB_URL`-based link when that is set) rather than shortened into a guessable code.
+6. **Forgot/reset password email delivery** — **resolved.** `forgot-password` now sends the reset link over SMTP, so production can complete a reset. Configuration lives in `backend/.env.example`; the API refuses to start in production without it.
+   - The token is emailed as a link to `APP_BASE_URL/reset-password?token=…`, which must be an **https** URL in production. The provider's error text and the token itself are never logged.
+   - A failed send still answers 202, so a bounce cannot become a 500 that reveals whether an address is registered.
+   - Outside production the raw token also comes back from `requestPasswordReset`, so tests can read it directly. It is never returned over HTTP in any environment.
+7. ~~**Refresh token still in the JSON body**~~ — **resolved.** register/login/refresh omit `refreshToken` from the body when the request carries `X-Client-Platform: web`, and still return it when the header is absent, so native builds are untouched. See §3.1.2.
+8. **Refresh cookie name and CSRF shape** — `chatapp_rt` on `/api/auth`, and a CSRF token that is an HMAC of the refresh token. Both are internal choices, not requirements; changing either only needs the two clients to move together.

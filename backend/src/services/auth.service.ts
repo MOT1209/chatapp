@@ -12,8 +12,7 @@ import { serializeUser, type UserDTO } from '../lib/serializers.js';
 import { isUniqueConstraintError } from '../lib/prisma-errors.js';
 import { env } from '../config/env.js';
 import { wsHub } from '../realtime/ws-hub.js';
-import { createMailer, type Mailer } from '../lib/mailer.js';
-import { logger } from '../lib/logger.js';
+import { sendPasswordResetEmail } from './email.service.js';
 import crypto from 'node:crypto';
 
 export type AuthTokens = { accessToken: string; refreshToken: string };
@@ -105,6 +104,19 @@ export async function login(
   return { user: serializeUser(user, { includeEmail: true }), ...tokens };
 }
 
+/**
+ * Whether a refresh token still names a live session. Used by `GET /auth/csrf` to
+ * answer "is there a session in this browser?" without rotating anything — a
+ * refresh here would burn the very cookie the client is asking about.
+ */
+export async function isActiveRefreshToken(refreshToken: string): Promise<boolean> {
+  const session = await prisma.session.findUnique({
+    where: { refreshHash: hashRefreshToken(refreshToken) },
+    select: { expiresAt: true, revokedAt: true },
+  });
+  return Boolean(session && !session.revokedAt && session.expiresAt.getTime() >= Date.now());
+}
+
 export async function refresh(refreshToken: string, meta: SessionMeta): Promise<AuthTokens> {
   const refreshHash = hashRefreshToken(refreshToken);
   const session = await prisma.session.findUnique({ where: { refreshHash } });
@@ -190,14 +202,17 @@ export async function logout(authorizationHeader: string | undefined, refreshTok
   }
 }
 
-const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+/**
+ * Read at call time rather than at import time so a test can drive a cooldown
+ * window without reloading the module graph.
+ */
+function resetTokenTtlMs(): number {
+  return env.PASSWORD_RESET_TOKEN_TTL_MINUTES * 60 * 1000;
+}
 
-// Built once from env. Tests pass their own Mailer to requestPasswordReset instead.
-const defaultMailer: Mailer = createMailer({
-  resendApiKey: env.RESEND_API_KEY,
-  mailFrom: env.MAIL_FROM,
-  appWebUrl: env.APP_WEB_URL,
-});
+function cooldownMs(): number {
+  return env.PASSWORD_RESET_COOLDOWN_SECONDS * 1000;
+}
 
 /**
  * True whenever the raw reset token may be surfaced outside the database at
@@ -213,21 +228,31 @@ export function canExposeRawResetToken(nodeEnv: string): boolean {
 /**
  * Requests a password reset. Per docs/api-contract.md §3.1 this always
  * "succeeds" from the caller's perspective (§6.6) — the HTTP layer never
- * sees a token either way. When a mail provider is configured the token is
- * emailed (see lib/mailer.ts); with none, nothing is sent and the endpoint
- * still behaves per contract. The return value exists only for local dev
- * curl-testing and for tests, which drive resetPassword() with the raw
- * token directly. It is never computed, logged, or returned in production.
+ * sees a token either way. The return value exists only for local dev
+ * curl-testing and for tests, which need the raw token to drive
+ * resetPassword() without an email provider. It is never computed, logged, or returned in
+ * production.
  */
-export async function requestPasswordReset(
-  email: string,
-  mailer: Mailer = defaultMailer,
-): Promise<{ resetToken: string } | void> {
+export async function requestPasswordReset(email: string): Promise<{ resetToken: string } | void> {
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   // Always succeeds from the caller's perspective — see docs/api-contract.md §3.1,
   // this must not reveal whether the address is registered.
   if (!user) {
     return;
+  }
+
+  const window = cooldownMs();
+  if (window > 0) {
+    // A cooldown is a per-account send limit, not just spam protection: without it
+    // `/forgot-password` is an unauthenticated SMTP amplifier that anyone can aim
+    // at a third party's inbox, using our reputation and quota.
+    const recent = await prisma.passwordResetToken.findFirst({
+      where: { userId: user.id, createdAt: { gt: new Date(Date.now() - window) } },
+      select: { id: true },
+    });
+    if (recent) {
+      return;
+    }
   }
 
   const rawToken = crypto.randomBytes(32).toString('hex');
@@ -243,31 +268,29 @@ export async function requestPasswordReset(
       data: {
         userId: user.id,
         tokenHash,
-        expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+        expiresAt: new Date(Date.now() + resetTokenTtlMs()),
       },
     }),
   ]);
 
-  // Deliver the token by email. A provider failure must neither 500 nor reveal
-  // that the address exists (contract §3.1), so it is logged and swallowed; the
-  // user can request another link. With no provider configured this is a no-op.
-  try {
-    await mailer.sendPasswordReset(user.email, rawToken);
-  } catch (err) {
-    logger.error('failed to send password reset email', {
-      userId: user.id,
-      err: err instanceof Error ? err.message : String(err),
-    });
-  }
+  // Deliver before deciding whether the raw token may be surfaced: development and
+  // production use the same path, so a misconfigured mailer is caught here in dev
+  // too rather than only after a deploy.
+  await sendPasswordResetEmail({
+    to: user.email,
+    displayName: user.displayName,
+    resetToken: rawToken,
+    expiresInMinutes: env.PASSWORD_RESET_TOKEN_TTL_MINUTES,
+  });
 
   if (!canExposeRawResetToken(env.NODE_ENV)) {
     return; // Production: the token exists only as a hash from this point on.
   }
 
   if (env.NODE_ENV === 'development') {
-    // Keeps the flow testable end-to-end locally without an email provider.
-    // Never runs in production, and not in test — tests read the token from
-    // the return value below instead of scraping stdout.
+    // Fallback so the flow stays testable by hand without a mail provider. Never
+    // runs in production, and not in test — tests read the token from the return
+    // value below instead of scraping stdout.
     console.log(`[dev-only] Password reset token for ${user.email}: ${rawToken}`);
   }
 

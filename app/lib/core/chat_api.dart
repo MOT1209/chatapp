@@ -34,21 +34,19 @@ class ChatApi {
     return _storeSession(json);
   }
 
-  /// Contract §3.1: a failed logout request must not block logout on the client.
-  ///
-  /// The refresh token is sent too: the access token lives 15 minutes, and once it
-  /// has expired it is the only thing that lets the server revoke the session.
-  Future<void> logout() async {
-    try {
-      final stored = await _tokens.read();
-      await client.post('/auth/logout', body: stored == null ? null : {'refreshToken': stored.refreshToken});
-    } on Exception {
-      // Tokens are cleared below regardless.
-    }
-    await _tokens.clear();
-  }
+/// Contract §3.1: a failed logout request must not block logout on the client.
+///
+/// The client owns this call rather than posting directly, because on web the
+/// refresh token is a cookie and the request needs the CSRF header; it also drops
+/// the CSRF token and local state whether or not the server answered.
+Future<void> logout() => client.logout();
 
   Future<bool> hasStoredSession() async => await _tokens.read() != null;
+
+  /// Boot-time session recovery. Native returns whether a stored session exists;
+  /// web re-adopts the refresh cookie first, since it is the only credential that
+  /// survives a page reload (see [ApiClient.restoreSession]).
+  Future<bool> restoreSession() => client.restoreSession();
 
   Future<User> me() async => User.fromJson(await client.get('/users/me') as Map<String, dynamic>);
 
@@ -112,7 +110,9 @@ class ChatApi {
   }
 
   Future<User> _storeSession(Map<String, dynamic> json) async {
-    await _tokens.write(Tokens(json['accessToken'] as String, json['refreshToken'] as String));
+    // Routed through the client so the CSRF token issued with the tokens is
+    // captured too; on web it also drops the refresh token instead of persisting it.
+    await client.adoptAuthResponse(json);
     return User.fromJson(json['user'] as Map<String, dynamic>);
   }
 }

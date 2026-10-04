@@ -44,3 +44,6 @@ Thumbs.db
 
 # Prisma
 backend/prisma/migrations/**/migration.sql.tmp
+
+# Local npm cache (npm_config_cache=./.npm-cache)
+.npm-cache/

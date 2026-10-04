@@ -33,6 +33,45 @@ working password-reset email. See `docs/ui-plan.md` for the UI picture.
 
 - `render.yaml`: deployment is postponed. `docs/deployment.md` keeps the prepared Blueprint (Frankfurt, paid plans, internal-only database) and the steps to resume.
 
+### Security
+
+- **Password reset is now deliverable.** The reset token was hashed, stored, and then
+  dropped — nothing could ever complete a reset in production. It is now emailed over
+  SMTP with a link built from `APP_BASE_URL`, which must be `https://` in production.
+  **The API refuses to start in production without SMTP configured.** Dev and test start
+  without it and send no mail, so neither needs a mail provider.
+- `forgot-password` gained a **per-account cooldown** (default 300s). Inside the window
+  the request is silently ignored and mints no token; unknown addresses send no mail at
+  all. Both keep the response identical so the endpoint still cannot enumerate accounts
+  or be used as a spam amplifier.
+- **Web clients no longer hold the refresh token where JavaScript can read it.** It now
+  travels in an `HttpOnly` cookie scoped to `/api/auth`, so an XSS or a compromised
+  dependency cannot exfiltrate it; the web build keeps only the 15-minute access token
+  in `localStorage`. A refresh token left there by an older build is deleted on boot.
+- Because the cookie is ambient authority, `POST /auth/refresh`, `POST /auth/logout`
+  and the new `GET /auth/csrf` require an `X-CSRF-Token` header (an HMAC of the refresh
+  token). Native clients are unchanged — they keep using the JSON body.
+- **The refresh token no longer reaches a browser at all.** Moving it into an `HttpOnly`
+  cookie is only half the fix: it was still returned in the JSON body, which any script
+  running on the page can read from its own `fetch` response. A browser now sends
+  `X-Client-Platform: web` on register/login/refresh and the server omits `refreshToken`
+  from the response. The header is optional and defaults to the old behaviour, so every
+  native build keeps working untouched and a web client that omits it still receives a
+  usable cookie.
+- A logout carrying a cookie without a valid CSRF token clears the cookie and returns
+  `204` but revokes nothing, since the request cannot be trusted; a real client with a
+  stale CSRF token is never locked out.
+- **Security headers are explicit rather than Helmet's defaults**: deny-all CSP
+  (including `frame-ancestors 'none'`), HSTS in production, and `require-corp` /
+  `same-origin` COEP/COOP.
+- **Secrets can be read from files.** Any config variable accepts a `*_FILE` variant
+  (`JWT_ACCESS_SECRET_FILE`, `SMTP_PASS_FILE`, …) for container and Kubernetes secret
+  mounts, so credentials need not appear in an environment dump or process listing.
+- Startup now rejects a wildcard `CORS_ORIGIN` in production (requests are credentialed)
+  and `SameSite=None` without `Secure`. A password-reset mail that fails is logged by
+  error type only and still answers `202`, so a provider error can't leak credentials or
+  reveal that an address exists.
+
 ### Fixed
 
 - App: the register form capped passwords at 72 *characters*, but the server caps them at 72 UTF-8 *bytes* (bcrypt). An Arabic password of 37–72 letters passed the form and was then rejected. The form now counts bytes and says that Arabic letters count as 2.

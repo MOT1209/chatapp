@@ -7,10 +7,29 @@ class Tokens {
   final String refreshToken;
 }
 
+/// A web client holds **only** the access token, in `localStorage`.
+///
+/// The refresh token is deliberately *not* persisted: it now lives in an `HttpOnly`
+/// cookie that JavaScript cannot read, so there is nothing here for an injected
+/// script to exfiltrate. `refreshToken` stays on the class because native platforms
+/// store both tokens in the OS credential store — see [SecureTokenStorage].
 abstract class TokenStorage {
   Future<Tokens?> read();
   Future<void> write(Tokens tokens);
   Future<void> clear();
+
+  /// False on web, where the refresh token is a cookie rather than a stored value.
+  /// The client uses this to decide whether a refresh call can carry a token body.
+  bool get persistsRefreshToken;
+}
+
+/// Base for every native-side store, so each one does not restate that it handles
+/// the refresh token itself. [WebTokenStorage] deliberately does not extend this.
+abstract class _PersistRefreshTokenStorage implements TokenStorage {
+  const _PersistRefreshTokenStorage();
+
+  @override
+  bool get persistsRefreshToken => true;
 }
 
 /// The OS credential store: Keychain (iOS, macOS), Keystore-backed encryption
@@ -19,7 +38,7 @@ abstract class TokenStorage {
 /// macOS uses the legacy keychain: the data-protection keychain needs the
 /// Keychain Sharing entitlement and a provisioning profile, without which an
 /// unsigned build only launches on the Mac that built it.
-class SecureTokenStorage implements TokenStorage {
+class SecureTokenStorage extends _PersistRefreshTokenStorage {
   SecureTokenStorage([FlutterSecureStorage? storage])
     : _storage = storage ?? const FlutterSecureStorage(mOptions: MacOsOptions(usesDataProtectionKeychain: false));
 
@@ -48,38 +67,55 @@ class SecureTokenStorage implements TokenStorage {
   }
 }
 
-/// Used on web only, where it is `localStorage` and readable by any XSS (see
-/// docs/ui-plan.md). On native platforms it is only read once, to migrate
-/// tokens stored in plaintext by v0.0.1 (see [migrateLegacyTokens]).
-class SharedPrefsTokenStorage implements TokenStorage {
-  SharedPrefsTokenStorage(this._prefs);
+/// Web only. `localStorage` is readable by any script on the origin, so this store
+/// keeps nothing long-lived: [read] returns null as soon as the refresh token is
+/// absent, and the client recovers the session from the cookie instead (see
+/// `ApiClient.restoreSession`).
+///
+/// A v0.0.1/v0.0.2 build left both tokens in here. Reading that legacy copy is
+/// intentionally not supported — [clearLegacyWebTokens] deletes it so an old
+/// long-lived secret cannot sit in `localStorage` forever.
+class WebTokenStorage implements TokenStorage {
+  WebTokenStorage(this._prefs);
 
   final SharedPreferences _prefs;
   static const _accessKey = 'auth.accessToken';
-  static const _refreshKey = 'auth.refreshToken';
+  static const _legacyRefreshKey = 'auth.refreshToken';
+
+  @override
+  bool get persistsRefreshToken => false;
 
   @override
   Future<Tokens?> read() async {
     final access = _prefs.getString(_accessKey);
-    final refresh = _prefs.getString(_refreshKey);
-    if (access == null || refresh == null) return null;
-    return Tokens(access, refresh);
+    if (access == null || access.isEmpty) return null;
+    // The refresh token is a cookie the server owns; an empty placeholder keeps
+    // call sites from having to special-case "web".
+    return Tokens(access, '');
   }
 
   @override
   Future<void> write(Tokens tokens) async {
     await _prefs.setString(_accessKey, tokens.accessToken);
-    await _prefs.setString(_refreshKey, tokens.refreshToken);
+    // Never persist the refresh token on web, whatever the caller passes in.
+    await _prefs.remove(_legacyRefreshKey);
   }
 
   @override
   Future<void> clear() async {
     await _prefs.remove(_accessKey);
-    await _prefs.remove(_refreshKey);
+    await _prefs.remove(_legacyRefreshKey);
   }
 }
 
-class InMemoryTokenStorage implements TokenStorage {
+/// Removes a refresh token left in `localStorage` by an older build. Without this
+/// the old token stays readable by any XSS on the origin indefinitely, which is
+/// exactly the exposure the cookie migration removes.
+Future<void> clearLegacyWebTokens(SharedPreferences prefs) async {
+  await prefs.remove(WebTokenStorage._legacyRefreshKey);
+}
+
+class InMemoryTokenStorage extends _PersistRefreshTokenStorage {
   InMemoryTokenStorage([this._tokens]);
   Tokens? _tokens;
 
@@ -98,7 +134,7 @@ class InMemoryTokenStorage implements TokenStorage {
 ///
 /// A persistent store that fails (e.g. Linux without a running keyring) degrades
 /// to memory only, never to plaintext: the user simply signs in again next launch.
-class RememberingTokenStorage implements TokenStorage {
+class RememberingTokenStorage extends _PersistRefreshTokenStorage {
   RememberingTokenStorage(this.persistent, {required bool Function() remember}) : _remember = remember;
 
   final TokenStorage persistent;
@@ -154,13 +190,17 @@ class RememberingTokenStorage implements TokenStorage {
 /// into [secure] and always delete the plaintext copy, even if the move fails
 /// (that only costs one sign-in).
 Future<void> migrateLegacyTokens(SharedPreferences prefs, TokenStorage secure) async {
-  final legacy = SharedPrefsTokenStorage(prefs);
-  final tokens = await legacy.read();
-  if (tokens == null) return;
-  try {
-    await secure.write(tokens);
-  } on Object {
-    // The user signs in again.
+  const accessKey = 'auth.accessToken';
+  const legacyRefreshKey = 'auth.refreshToken';
+  final access = prefs.getString(accessKey);
+  final refresh = prefs.getString(legacyRefreshKey);
+  if (access != null && refresh != null) {
+    try {
+      await secure.write(Tokens(access, refresh));
+    } on Object {
+      // The user signs in again.
+    }
   }
-  await legacy.clear();
+  await prefs.remove(accessKey);
+  await prefs.remove(legacyRefreshKey);
 }

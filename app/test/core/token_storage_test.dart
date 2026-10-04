@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// A credential store that is unavailable, like Linux without a keyring.
 class _BrokenStorage implements TokenStorage {
   @override
+  bool get persistsRefreshToken => throw StateError('no keyring');
+  @override
   Future<Tokens?> read() => throw StateError('no keyring');
   @override
   Future<void> write(Tokens tokens) => throw StateError('no keyring');

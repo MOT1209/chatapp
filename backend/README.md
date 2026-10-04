@@ -139,22 +139,59 @@ backend/
   refuses to start. `development`/`test` allow short, obviously-fake values —
   see `.env.example`. Never logged.
 - Password reset tokens: random, only their hash stored, single-use, 1-hour
-  expiry, resetting invalidates every existing session. The raw token is
-  environment-gated (`canExposeRawResetToken` in `auth.service.ts`) — logged
-  in development, returned only to test code, **never logged, returned, or
-  otherwise exposed in production**. Delivery is by email when a provider is
-  configured (`src/lib/mailer.ts`): set `RESEND_API_KEY` and `MAIL_FROM` for
-  [Resend](https://resend.com); with neither set, the endpoint still behaves
-  per contract but sends nothing. A provider failure is logged and swallowed
-  so it can neither 500 nor reveal whether an address is registered.
+  expiry, resetting invalidates every existing session.
+- **Password reset is delivered by email.** SMTP is configured in `.env` (see
+  `.env.example`) and the link is built from `APP_BASE_URL`, which must be
+  `https://` in production. Outside production the API starts without SMTP and
+  sends no mail, which keeps local dev and tests free of a mail dependency.
+  **In production SMTP is mandatory — the process refuses to start without it**,
+  because a reset flow with nowhere to send the token cannot complete.
+- The raw reset token is never returned over HTTP, never logged, and never
+  included in an email error log. A send that fails is logged by error type only
+  (the provider's message can embed credentials) and the endpoint still answers
+  `202`, so a bounce can't become a 500 that reveals whether an address exists.
+  Outside production the service function also returns the token so tests can
+  read it (`canExposeRawResetToken` in `auth.service.ts`).
+- **`forgot-password` has a per-account cooldown** (`PASSWORD_RESET_COOLDOWN_SECONDS`,
+  default 300s). Inside the window the request is silently ignored and mints no
+  token, so no unusable link is created and one abuser cannot lock out another
+  account. Unknown addresses send no mail at all.
+- **Web clients keep the refresh token in an `HttpOnly` cookie**, so JavaScript on
+  the origin cannot read it — an XSS or a compromised dependency cannot exfiltrate
+  it. Because that cookie is ambient authority, the calls that rely on it must
+  echo `X-CSRF-Token` (an HMAC of the refresh token), obtainable again from
+  `GET /api/auth/csrf` after a reload. Native clients are unaffected and keep
+  using the JSON body. See `docs/api-contract.md` §3.1.1.
+- The cookie alone is not enough, because the token would still sit in the JSON body
+  where any script on the page could read it. A browser therefore sends
+  `X-Client-Platform: web` on register/login/refresh, and the server **omits**
+  `refreshToken` from the response body. Without that header the token is returned
+  exactly as before, so native builds need no change and a web client that forgets
+  the header still ends up with a working cookie. See `docs/api-contract.md` §3.1.2.
+- The cookie is `HttpOnly`, forced `Secure` in production, `SameSite=Lax` by
+  default, and scoped to `Path=/api/auth`. `SameSite=None` additionally requires
+  `Secure`, and a wildcard `CORS_ORIGIN` is rejected in production now that
+  requests are credentialed.
+- Security headers are set explicitly in `src/middleware/security-headers.ts`
+  rather than left at Helmet's defaults: a deny-all CSP (including
+  `frame-ancestors 'none'`), HSTS in production, and `require-corp`/`same-origin`
+  COEP/COOP. `tests/security-headers.test.ts` asserts them on real responses.
+- **Secrets can come from files.** Any config variable accepts a `*_FILE`
+  variant (`JWT_ACCESS_SECRET_FILE=/run/secrets/…`, `SMTP_PASS_FILE=…`) read at
+  startup via `src/config/secrets.ts`, for container and Kubernetes secret mounts.
+  One trailing newline is trimmed and the literal variable wins if both are set.
 - `POST /auth/logout` revokes **every** session for the account, not just the
-  caller's — see `docs/api-contract.md`'s logout section.
+  caller's — see `docs/api-contract.md`'s logout section. A logout carrying a
+  cookie without a valid CSRF token clears the cookie and returns `204` but
+  revokes nothing, since the request is untrusted.
 - Auth, user search, and message-send routes are rate limited
   (`src/middleware/rate-limit.ts`); disabled automatically when `NODE_ENV=test`
   (`tests/security.test.ts` verifies the real 429/`Retry-After`/`RATE_LIMITED`
   behavior against an isolated instance of the same limiter, bypassing that
   test-mode switch).
-- CORS is restricted to `CORS_ORIGIN`; Helmet sets standard security headers.
+- CORS is restricted to `CORS_ORIGIN` (exact origins, comma-separated;
+  `Access-Control-Allow-Credentials: true`, never a wildcard in production).
+  Security headers are set per the `security-headers.ts` bullet above.
 - Every input is validated with Zod before it reaches a service — REST bodies
   and query params, and every WebSocket frame (`src/validators/realtime.validators.ts`):
   an unknown frame type, a missing or mistyped field, or malformed JSON is
@@ -175,7 +212,6 @@ backend/
   trace, a raw error message, or any internal detail in an HTTP response —
   unexpected errors always become a generic `SERVER_ERROR`; the real detail
   goes only to the server-side logger.
-- Email is sent via Resend's HTTP API when configured (`src/lib/mailer.ts`); SMTP is not used. Password reset is the only message. See `docs/api-contract.md` §6.6.
 
 ## Contract
 

@@ -1,0 +1,380 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مراجعة شاملة - ChatApp | Alpha v0.0.1</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-primary: radial-gradient(1200px 800px at 50% 0%, #0f1026 0%, #050508 70%);
+      --glass: rgba(255,255,255,0.08);
+      --glass-strong: rgba(255,255,255,0.12);
+      --primary: linear-gradient(135deg, #8b5cf6 0%, #4cc9f0 50%, #22d3ee 100%);
+      --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
+      --text-primary: #f8fafc; --text-secondary: rgba(248,250,252,0.72);
+      --border: rgba(255,255,255,0.12);
+      --card-bg: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
+      --shadow: 0 20px 60px -20px rgba(99,102,241,0.45);
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Cairo','Inter',system-ui,-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.8;min-height:100vh;overflow-x:hidden}
+    body::before,body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:-2}
+    body::before{background:radial-gradient(600px 400px at 10% 0%, rgba(139,92,246,0.14) 0%, transparent 70%)}
+    body::after{background:radial-gradient(600px 400px at 90% 0%, rgba(76,201,240,0.14) 0%, transparent 70%)}
+    .container{width:min(1240px,93vw);margin:0 auto;padding:clamp(1.8rem,2vw,3rem) 0 clamp(3rem,4vw,5rem);display:flex;flex-direction:column;gap:clamp(2rem,3vw,3.5rem)}
+    header{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:clamp(1rem,2vw,1.4rem);padding:clamp(2.4rem,4vw,4.2rem) clamp(1rem,3vw,2rem);border-radius:clamp(1.2rem,2vw,1.6rem);background:var(--card-bg);border:1px solid var(--border);box-shadow:var(--shadow);backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);overflow:hidden}
+    header::after{content:'';position:absolute;inset:0;background:radial-gradient(820px 340px at 50% 0%, rgba(255,255,255,0.1) 0%, transparent 72%);pointer-events:none}
+    .badge{position:relative;z-index:1;display:inline-flex;align-items:center;gap:.6rem;padding:.42rem 1rem;border-radius:999px;font-weight:800;background:rgba(34,197,94,0.22);border:1px solid rgba(34,197,94,0.52);color:#bbf7d0;box-shadow:0 12px 44px -20px rgba(34,197,94,.9);backdrop-filter:blur(10px)}
+    h1{position:relative;z-index:1;font-size:clamp(2.6rem,5vw,4.2rem);font-weight:900;background:var(--primary);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 22px 86px rgba(99,102,241,.32)}
+    .subtitle{position:relative;z-index:1;max-width:min(760px,90vw);color:var(--text-secondary);font-size:clamp(1.02rem,2.2vw,1.24rem);font-weight:500}
+    .meta-grid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:clamp(.8rem,2vw,1rem);width:min(880px,93vw)}
+    .meta-card{display:flex;flex-direction:column;align-items:center;gap:.24rem;padding:clamp(.9rem,2vw,1.12rem);border-radius:clamp(.9rem,2vw,1.08rem);background:var(--glass);border:1px solid var(--border);backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+    .meta-label{color:var(--text-secondary);font-size:clamp(.9rem,2vw,.98rem)}
+    .meta-value{font-size:clamp(1.02rem,2vw,1.28rem);font-weight:800}
+    section{display:flex;flex-direction:column;gap:clamp(1.4rem,2vw,2rem)}
+    .section-header{display:flex;flex-direction:column;gap:.6rem}
+    .section-title{display:flex;align-items:center;gap:clamp(.6rem,2vw,.9rem);font-size:clamp(1.42rem,3vw,2.12rem);font-weight:900}
+    .section-title i{display:inline-flex;align-items:center;justify-content:center;width:clamp(2.4rem,3vw,2.9rem);height:clamp(2.4rem,3vw,2.9rem);border-radius:999px;background:linear-gradient(135deg,rgba(139,92,246,.26) 0%,rgba(76,201,240,.26) 100%);border:1px solid rgba(255,255,255,.28);box-shadow:inset 0 1px 0 rgba(255,255,255,.26),0 12px 64px -22px rgba(99,102,241,.7)}
+    .section-subtitle{color:var(--text-secondary);max-width:min(860px,93vw);font-size:clamp(1.02rem,2vw,1.14rem)}
+    .grid{display:grid;gap:clamp(1.1rem,2vw,1.6rem)}
+    .grid-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+    .grid-3{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+    .card{position:relative;display:flex;flex-direction:column;gap:clamp(.9rem,2vw,1.3rem);padding:clamp(1.4rem,2.6vw,2.2rem);border-radius:clamp(1rem,2vw,1.5rem);background:var(--card-bg);border:1px solid var(--border);backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 22px 64px -26px rgba(99,102,241,.58);transition:transform .22s ease,border .22s ease,box-shadow .22s ease}
+    .card:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.24);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 32px 84px -26px rgba(99,102,241,.7)}
+    .card::before{content:'';position:absolute;inset:0;border-radius:inherit;background:radial-gradient(620px 250px at 50% 0%, rgba(255,255,255,.1) 0%, transparent 72%);pointer-events:none}
+    .card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+    .card-title{font-size:clamp(1.08rem,2vw,1.38rem);font-weight:900}
+    .card-text{color:var(--text-secondary)}
+    .tag-list{display:flex;flex-wrap:wrap;gap:clamp(.44rem,2vw,.64rem)}
+    .tag{display:inline-flex;align-items:center;gap:.38rem;padding:.28rem .7rem;border-radius:999px;font-size:clamp(.88rem,2vw,.98rem);font-weight:700;background:var(--glass);border:1px solid var(--border);backdrop-filter:blur(10px)}
+    .tag-success{background:rgba(34,197,94,.24);border-color:rgba(34,197,94,.56);color:#bbf7d0}
+    .tag-warning{background:rgba(245,158,11,.24);border-color:rgba(245,158,11,.56);color:#fde68a}
+    .tag-danger{background:rgba(239,68,68,.24);border-color:rgba(239,68,68,.56);color:#fecaca}
+    .tag-info{background:rgba(76,201,240,.24);border-color:rgba(76,201,240,.56);color:#bae6fd}
+    .tag-accent{background:rgba(139,92,246,.26);border-color:rgba(139,92,246,.58);color:#e9d5ff}
+    pre,code{font-family:'JetBrains Mono',SFMono-Regular,Consolas,'Liberation Mono',monospace}
+    .code-block{display:flex;flex-direction:column;gap:.8rem;padding:clamp(1.1rem,2vw,1.4rem);border-radius:clamp(.9rem,2vw,1.16rem);background:radial-gradient(680px 340px at 50% 0%, rgba(15,23,42,.96) 0%, rgba(15,23,42,.88) 100%);border:1px solid rgba(255,255,255,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 22px 64px -26px rgba(15,23,42,.94);overflow:auto;max-height:clamp(340px,64vh,560px)}
+    .code-block pre{margin:0;white-space:pre;color:#e2e8f0;font-size:clamp(.88rem,2vw,.98rem);line-height:1.98}
+    .tree-comment{color:#94a3b8}
+    .tree-dir{color:#60a5fa}
+    .tree-file{color:#5eead4}
+    .tree-exe{color:#f59e0b}
+    .list{display:flex;flex-direction:column;gap:clamp(.8rem,2vw,1.04rem);padding-right:.6rem}
+    .list-item{display:flex;align-items:flex-start;gap:clamp(.7rem,2vw,.9rem);color:var(--text-secondary)}
+    .list-item i{margin-top:.26rem;color:#c7d2fe}
+    .table-wrapper{border-radius:clamp(.9rem,2vw,1.16rem);border:1px solid var(--border);overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+    table{width:100%;border-collapse:collapse;background:rgba(15,23,42,.54);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+    thead{background:rgba(255,255,255,.1)}
+    th,td{padding:clamp(.8rem,2vw,1.08rem) clamp(.9rem,2vw,1.3rem);text-align:right;border-bottom:1px solid rgba(255,255,255,.09)}
+    th{font-weight:900;color:var(--text-primary)}
+    td{color:var(--text-secondary)}
+    tbody tr:hover{background:rgba(255,255,255,.06)}
+    .footer{text-align:center;color:var(--text-secondary);padding-top:clamp(1.2rem,2vw,2.2rem);border-top:1px solid var(--border)}
+    .float{animation:float 5s ease-in-out infinite}
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+    ::selection{background:rgba(139,92,246,.5);color:#fff}
+    @media (max-width:760px){.code-block{max-height:64vh}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="badge float"><i class="bi bi-stars"></i>مراجعة شاملة ومنهجية</span>
+      <h1>ChatApp — Comprehensive Project Review</h1>
+      <p class="subtitle">تحليل عميق لحالة Alpha v0.0.1: بنية Monorepo، خلفية Express + Prisma + PostgreSQL، تطبيق Flutter متعدد المنصات، أمان، اختبارات، نقاط قوة، حدود معروفة، وخارطة طريق عملية نحو Beta.</p>
+      <div class="meta-grid">
+        <div class="meta-card"><span class="meta-label">الإصدار</span><span class="meta-value">v0.0.1-alpha</span></div>
+        <div class="meta-card"><span class="meta-label">الحالة</span><span class="meta-value">Alpha — End-to-End Working</span></div>
+        <div class="meta-card"><span class="meta-label">عدد الملفات</span><span class="meta-value">88 ملف (≈349 KB)</span></div>
+        <div class="meta-card"><span class="meta-label">فرع العمل</span><span class="meta-value">alpha/verification-real</span></div>
+        <div class="meta-card"><span class="meta-label">Backend Tests</span><span class="meta-value">50+ (Vitest + Postgres)</span></div>
+        <div class="meta-card"><span class="meta-label">Flutter Tests</span><span class="meta-value">Widgets/Units</span></div>
+      </div>
+    </header>
+    <section>
+      <div class="section-header">
+        <h2 class="section-title"><i class="bi bi-lightbulb"></i>1. نظرة عامة على المشروع</h2>
+        <p class="section-subtitle">ChatApp هو تطبيق دردشة فورية متعدد المنصات، مبني بنمط Monorepo واضح يفصل بين العميل والخادم تماماً، مع التزام صارم بـ <code>docs/api-contract.md</code> كمصدر وحيد للحقيقة.</p>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">الأهداف المحققة</h3><div class="tag-list"><span class="tag tag-success"><i class="bi bi-check-circle"></i>End-to-End Verified</span></div></div>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i>تسجيل، تسجيل دخول، استعادة كلمة المرور، تجديد التوكن مع التدوير (rotation).</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i>بحث عن مستخدمين، محادثات مباشرة، إرسال ذكي مع deduplication عبر <code>clientId</code>.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i>الوقت الحقيقي (WebSocket) مع مصادقة في الإطار الأول، typing، presence، read receipts.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i>حذف رسائل (soft delete) مع نشر مباشر للحالة.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i>دعم RTL للعربية + English، Dark/Light/System.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">ملاحظة هامة عن النشر</h3><div class="tag-list"><span class="tag tag-warning"><i class="bi bi-exclamation-triangle"></i>Alpha Limitation</span></div></div>
+          <p class="card-text">التطبيق جاهز للتحقق الوظيفي End-to-End، لكنه غير جاهز للإنتاج. أبرز القيود المعروفة: عدم وجود بريد SMTP حقيقي (رمز إعادة التعيين يُسجل في Console فقط في التطوير)، التخزين المحلي للتوكنات على الويب (<code>localStorage</code>) معرض لـ XSS، وحالة Realtime في الذاكرة (عملية واحدة).</p>
+          <div class="tag-list"><span class="tag">No Email Delivery (dev-only)</span><span class="tag">Web: localStorage (XSS)</span><span class="tag">Single-process Hub</span></div>
+        </div>
+      </div>
+    </section>
+    <section>
+      <div class="section-header">
+        <h2 class="section-title"><i class="bi bi-stack"></i>2. التقنية والبنية</h2>
+        <p class="section-subtitle">تقسيم واضح بين Workspaces مع ممارسات احترافية (Validation، Rate Limiting، Sanitized Errors، Secure Token Storage حيث يدعم النظام).</p>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Backend (Node.js + TypeScript)</h3><div class="tag-list"><span class="tag tag-info">Express 4</span><span class="tag tag-info">Prisma 5</span><span class="tag tag-info">PostgreSQL</span><span class="tag tag-info">ws</span><span class="tag tag-info">Zod</span></div></div>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-check2"></i>ESM + TypeScript صارم مع typecheck في CI.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>هندسة Routes → Controllers → Services مع فصل واضح.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>Middleware: <code>auth</code>، <code>validate</code>، <code>rate-limit</code>، <code>error-handler</code>.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>Realtime Hub + WS Server مع فحص الإطار الأول (auth grace)، validate frames، crash-safety.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>ENV صارم مع منع Weak Secrets في Production + فحص عدم تطابق الـsecrets.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>bcryptjs + jwt + SHA-256 لأغراض المقارنة (refreshHash/tokenHash) بدون تخزين Raw.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Client (Flutter)</h3><div class="tag-list"><span class="tag tag-accent">Flutter 3.47+</span><span class="tag tag-accent">Dart 3.13+</span><span class="tag tag-accent">Material 3</span><span class="tag tag-accent">Provider</span></div></div>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-check2"></i>يدعم Web/Mobile/Desktop من كود واحد.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>TokenStorage: <code>flutter_secure_storage</code> للجوال، <code>SharedPreferences</code> للويب/سطح المكتب (موثق بحدوده).</li>
+            <li class="list-item"><i class="bi bi-check2"></i>API Client + Realtime Client مع تجديد تلقائي للتوكن.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>حالة (Controllers/State) منظمة + نماذج + Widgets.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>تدويل AR/EN + دعم RTL كامل.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>تصميم متجاوب: BottomNav للجوال، Rail/Sidebar للأجهزة الكبيرة.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section>
+      <div class="section-header">
+        <h2 class="section-title"><i class="bi bi-diagram-3"></i>3. بنية المجلدات (Tree)</h2>
+        <p class="section-subtitle">عرض واضح للهيكلة الحالية للتطبيق.</p>
+      </div>
+      <div class="card">
+        <div class="code-block">
+          <pre><span class="tree-comment"># ChatApp Monorepo</span>
+chatapp/
+├── <span class="tree-dir">.github/</span>                <span class="tree-comment">Workflows + PR/Issue Templates</span>
+├── <span class="tree-dir">app/</span>                    <span class="tree-comment">Flutter (Mobile/Desktop/Web)</span>
+│   ├── <span class="tree-dir">lib/</span>                  <span class="tree-comment">core, state, models, ui, l10n</span>
+│   ├── <span class="tree-dir">test/</span>                 <span class="tree-comment">unit/widget + fakes</span>
+│   ├── <span class="tree-dir">android/ios/linux/...</span>
+│   └── pubspec.yaml
+├── <span class="tree-dir">backend/</span>                <span class="tree-comment">Express + TypeScript + Prisma</span>
+│   ├── <span class="tree-dir">prisma/</span>               <span class="tree-comment">schema + migrations (2)</span>
+│   ├── <span class="tree-dir">src/</span>                  <span class="tree-comment">app, server, routes, controllers, services</span>
+│   │   ├── <span class="tree-dir">config/</span>            <span class="tree-comment">env validation (Zod)</span>
+│   │   ├── <span class="tree-dir">lib/</span>               <span class="tree-comment">infra helpers (36 files total)</span>
+│   │   ├── <span class="tree-dir">middleware/</span>
+│   │   ├── <span class="tree-dir">realtime/</span>          <span class="tree-comment">ws-hub + ws-server</span>
+│   │   ├── <span class="tree-dir">services/</span>
+│   │   ├── <span class="tree-dir">validators/</span>
+│   │   └── <span class="tree-dir">types/</span>
+│   ├── <span class="tree-dir">tests/</span>                <span class="tree-comment">10 test files (auth, conv, msg, realtime, security, e2e)</span>
+│   ├── tsconfig.json
+│   ├── vitest.config.ts
+│   └── package.json
+├── <span class="tree-dir">docs/</span>                   <span class="tree-comment">api-contract, architecture, dev, git-workflow, ui-plan</span>
+├── CHANGELOG.md
+├── README.md
+├── plan.md
+└── package.json              <span class="tree-comment">Monorepo scripts (dev/build/test/lint/typecheck)</span></pre>
+        </div>
+      </div>
+    </section>
+    <section>
+      <div class="section-header">
+        <h2 class="section-title"><i class="bi bi-shield-check"></i>4. الأمان — تحليل سريع</h2>
+        <p class="section-subtitle">طبقات حماية موجودة بالفعل، مع توصيات عملية لسد الفجوات قبل الإنتاج.</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">موجود حالياً</h3><span class="tag tag-success"><i class="bi bi-check-all"></i>Strong Baseline</span></div>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-check2"></i>Helmet، CORS محدد، trust proxy مضبوط.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>JWT مع Access/Refresh منفصلين + rotation.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>bcryptjs لتمريرات الدخول.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>refreshHash / tokenHash فقط (لا يُخزن Raw).</li>
+            <li class="list-item"><i class="bi bi-check2"></i>Rate limiting على auth/search/send.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>WebSocket: auth frame أولاً، validation، membership check.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>معالجة أخطاء مركزية + عدم كشف stack في الردود.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">تحسينات مقترحة (Pre-Prod)</h3><span class="tag tag-warning"><i class="bi bi-tools"></i>Actionable</span></div>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Web Tokens:</strong> استبدال <code>localStorage</code> بـ <code>HttpOnly Secure SameSite</code> cookies لتفادي XSS (أقوى).</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Desktop Storage:</strong> تشفير ملف التوكنات على Desktop (Keychain/OS credential store) بدل ملف عادي.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Email:</strong> ربط SMTP حقيقي مع Rate Limit + Token TTL واضح + Throttling.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Headers:</strong> إضافة CSP صارم، HSTS في الإنتاج، Permissions-Policy.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Logging:</strong> تجنب أي بيانات حساسة في Logs، ربط request-id.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>WS Scaling:</strong> Redis Pub/Sub عند تعدد السيرفرات.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">نقاط إيجابية مميزة</h3><span class="tag tag-info"><i class="bi bi-award"></i>Security-Aware</span></div>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-check2"></i>منع استخدام Weak Secrets في Production مع رسائل توجيهية واضحة.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>فحص عضوية المستخدم في المحادثة قبل إرسال typing/read.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>crash-safety على WS (error handlers على wss/socket).</li>
+            <li class="list-item"><i class="bi bi-check2"></i>maxPayload + auth grace لمنع abuse.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>سرية كاملة: لا يُعاد Hash أو Secrets للعميل.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>soft delete + idempotent send يقلل من side-effects.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section>
+      <div class="section-header">
+        <h2 class="section-title"><i class="bi bi-clipboard-data"></i>5. الجودة، الاختبارات والتوثيق</h2>
+        <p class="section-subtitle">غطاء اختبارات قوي على الخلفية، مع وجود اختبارات Flutter. التوثيق منسق جيداً عبر <code>docs/</code>.</p>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Backend Tests (50+)</h3><div class="tag-list"><span class="tag tag-success">Vitest</span><span class="tag tag-success">Supertest</span><span class="tag tag-success">Real Postgres</span></div></div>
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>ملف الاختبار</th><th>الغرض</th></tr></thead>
+              <tbody>
+                <tr><td><code>health.test.ts</code></td><td>فحص /health</td></tr>
+                <tr><td><code>auth.test.ts</code></td><td>Register/Login/Refresh/Logout/Forgot-Reset</td></tr>
+                <tr><td><code>users.test.ts</code></td><td>Profile + Search</td></tr>
+                <tr><td><code>conversations.test.ts</code></td><td>Direct + Idempotency (directKey)</td></tr>
+                <tr><td><code>messages.test.ts</code></td><td>Cursor pagination + Idempotent send + Delete</td></tr>
+                <tr><td><code>realtime.test.ts</code></td><td>WS Protocol كامل</td></tr>
+                <tr><td><code>security.test.ts</code></td><td>JWT strength + sanitization + rate limits</td></tr>
+                <tr><td><code>e2e.test.ts</code></td><td>رحلة Two-Person End-to-End حقيقية</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="card-text">ممتاز: يستخدم Postgres حقيقي في الاختبارات، ويشمل WebSocket Protocol + Security + E2E — مؤشر نضج عالي.</p>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">App Tests + Docs</h3><div class="tag-list"><span class="tag tag-info">Flutter Test</span><span class="tag tag-info">Docs Complete</span></div></div>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-check2"></i>Flutter: <code>test/core/*</code>، <code>test/state/*</code>، <code>test/models_test.dart</code>، <code>test/app_test.dart</code> + <code>test/support/*</code> (FakeBackend + Harness).</li>
+            <li class="list-item"><i class="bi bi-check2"></i>التوثيق قوي: <code>docs/api-contract.md</code> (مفصّل جداً)، <code>architecture.md</code>، <code>development.md</code>، <code>git-workflow.md</code>، <code>ui-plan.md</code>.</li>
+            <li class="list-item"><i class="bi bi-check2"></i><code>CHANGELOG.md</code> واضح ومنظّم للإصدار.</li>
+            <li class="list-item"><i class="bi bi-check2"></i>CI موجود: backend.yml (typecheck/lint/test/build + Postgres)، app.yml (analyze/test/build متعدد المنصات).</li>
+            <li class="list-item"><i class="bi bi-check2"></i>Scripts Monorepo شاملة في الجذر.</li>
+          </ul>
+          <div class="tag-list"><span class="tag tag-success">Contract-Driven</span><span class="tag tag-success">Well-Documented</span></div>
+        </div>
+      </div>
+    </section>
+    <section>
+      <div class="section-header">
+        <h2 class="section-title"><i class="bi bi-graph-up-arrow"></i>6. نقاط القوة — ما يُميز المشروع</h2>
+        <p class="section-subtitle">مشروع ناضج نسبياً كـ Alpha بفضل الانضباط الهندسي الواضح.</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">هندسة نظيفة</h3><span class="tag tag-accent"><i class="bi bi-diagram-2"></i>Separation of Concerns</span></div>
+          <p class="card-text">فصل صارم بين Routes/Controllers/Services، lib infra منفصل، Realtime معزول. يسهّل الصيانة والتوسع.</p>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">اتساق مع العقد (Contract)</h3><span class="tag tag-accent"><i class="bi bi-file-earmark-text"></i>Single Source</span></div>
+          <p class="card-text">الالتزام بـ <code>api-contract.md</code> يقلل تضارب العميل/الخادم ويمنع regression غير مرغوب.</p>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Realtime مدروس</h3><span class="tag tag-accent"><i class="bi bi-broadcast-pin"></i>Production-Minded</span></div>
+          <p class="card-text">auth grace، frame validation، crash-safety، membership checks، presence per-contacts — تفاصيل دقيقة نادرة.</p>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">أمان عملي</h3><span class="tag tag-accent"><i class="bi bi-shield-lock"></i>Defense-in-Depth</span></div>
+          <p class="card-text">rotation للتوكنات، refreshHash/tokenHash، منع Weak Secrets، rate limiting، sanitized errors.</p>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">اختبارات حقيقية</h3><span class="tag tag-accent"><i class="bi bi-vial-check"></i>Honest Testing</span></div>
+          <p class="card-text">استخدام DB حقيقي + WebSocket + E2E يمنح ثقة حقيقية بأن التدفق يعمل فعلياً.</p>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">تجربة عميل ممتازة</h3><span class="tag tag-accent"><i class="bi bi-phone"></i>Cross-Platform</span></div>
+          <p class="card-text">Responsive، RTL، ثيمات، optimistic send + retry، typing/read receipts — تجربة احترافية.</p>
+        </div>
+      </div>
+    </section>
+    <section>
+      <div class="section-header">
+        <h2 class="section-title"><i class="bi bi-list-check"></i>7. التحسينات المقترحة — خارطة طريق عملية</h2>
+        <p class="section-subtitle">اقتراحات مرتبة حسب الأولوية (P0 = حتمي للإنتاج، P1 = مهم، P2 = تحسين جودة).</p>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">P0 — قبل الإنتاج</h3><span class="tag tag-danger"><i class="bi bi-exclamation-octagon"></i>Blockers</span></div>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-1-circle"></i><strong>Email SMTP حقيقي:</strong> استبدال طباعة الرمز في Console بإرسال بريد حقيقي + cooldown + rate limit + token invalidation عند الاستخدام.</li>
+            <li class="list-item"><i class="bi bi-2-circle"></i><strong>أمان التوكنات على الويب:</strong> نقل Refresh Token إلى <code>HttpOnly Secure SameSite=Strict/Lax</code> cookies + CSRF protection (Double Submit أو CSRF token). Access Token يُمكن إبقاؤه قصير العمر أو يُدار عبر cookie أيضاً.</li>
+            <li class="list-item"><i class="bi bi-3-circle"></i><strong>تشفير تخزين Desktop:</strong> استبدال SharedPrefs العادي بتخزين OS-secure (Keychain/Credential Manager) أو تشفير AES مع OS keystore.</li>
+            <li class="list-item"><i class="bi bi-4-circle"></i><strong>إعدادات الإنتاج:</strong> CSP قوي، HSTS preload، Referrer-Policy، Permissions-Policy، X-Content-Type-Options، CORP/COEP حسب الحاجة.</li>
+            <li class="list-item"><i class="bi bi-5-circle"></i><strong>Secrets/Config:</strong> إدارة Secrets خارج .env (Vault/Cloud Secret Manager)، فحص stricter للإنتاج.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">P1 — جاهزية للتوسّع</h3><span class="tag tag-warning"><i class="bi bi-bar-chart-steps"></i>Scalability</span></div>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Realtime Scaling:</strong> Redis Pub/Sub لـ ws-hub (multi-instance) + adapter abstraction بدون كسر الواجهة الحالية.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Health/Observability:</strong> <code>/ready</code>، <code>/metrics</code> (Prometheus)، structured logs مع request-id، tracing (OTel) اختياري.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Rate Limits متقدمة:</strong> per-user + per-IP + sliding window + Redis store للتوزيع.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>File Uploads (جاهز مستقبلاً):</strong> تخطيط للتخزين (S3/Cloudflare R2) + validation + virus scan عند الحاجة.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Background Jobs:</strong> للمهام الثقيلة (email، cleanup sessions expired).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">P2 — تحسينات جودة</h3><span class="tag tag-info"><i class="bi bi-stars"></i>Polish</span></div>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>ترجمة الأخطاء:</strong> خريطة أخطاء إنجليزية → رسائل عربية موحّدة في العميل (ErrorMapper) مع الاحتفاظ بالكود.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Offline Support:</strong> queue للإرسال عند انقطاع الشبكة + replay + conflict handling.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Accessibility (a11y):</strong> Semantics، Focus management، contrast checks.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Performance:</strong> Lazy loading، image caching، DB indexes review (موجودة جيداً أساساً).</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>E2E Flutter:</strong> إضافة Patrol/Integration Tests للرحلة الكاملة على الويب/Android.</li>
+            <li class="list-item"><i class="bi bi-arrow-left-short"></i><strong>Types Sharing:</strong> استخراج أنواع مشتركة (Zod types → TS types) بين Backend و OpenAPI أو حتى Client نوعاً ما.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section>
+      <div class="section-header">
+        <h2 class="section-title"><i class="bi bi-bar-chart"></i>8. التقييم العام + الخلاصة</h2>
+        <p class="section-subtitle">تقييم موضوعي للوضع الحالي مع خلاصة تنفيذية واضحة.</p>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">تقييم حسب المحاور</h3></div>
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>المحور</th><th>التقييم</th><th>ملاحظات</th></tr></thead>
+              <tbody>
+                <tr><td>البنية (Architecture)</td><td><span class="tag tag-success">★★★★★ (5/5)</span></td><td>نظيفة، منظمة، Contract-driven</td></tr>
+                <tr><td>الأمان (Security)</td><td><span class="tag tag-success">★★★★☆ (4.5/5)</span></td><td>قوي جداً، يحتاج HttpOnly Cookies للإنتاج</td></tr>
+                <tr><td>الوقت الحقيقي (Realtime)</td><td><span class="tag tag-success">★★★★★ (5/5)</span></td><td>مدروس بدقة، مع crash-safety</td></tr>
+                <tr><td>جودة الكود (Code Quality)</td><td><span class="tag tag-success">★★★★★ (5/5)</span></td><td>TypeScript صارم، فصل واضح، تعليقات مفيدة</td></tr>
+                <tr><td>الاختبارات (Testing)</td><td><span class="tag tag-success">★★★★★ (5/5)</span></td><td>Real DB + WS + E2E ممتاز</td></tr>
+                <tr><td>تجربة المستخدم (UX)</td><td><span class="tag tag-success">★★★★★ (5/5)</span></td><td>Responsive + RTL + Dark/Light + Realtime UX</td></tr>
+                <tr><td>التوثيق (Docs)</td><td><span class="tag tag-success">★★★★★ (5/5)</span></td><td>شامل ومنسق جداً</td></tr>
+                <tr><td>جاهزية الإنتاج (Prod Readiness)</td><td><span class="tag tag-warning">★★★★☆ (4/5)</span></td><td>Email + Token Storage Web يحتاجان معالجة</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">الخلاصة التنفيذية</h3><span class="tag tag-success"><i class="bi bi-rocket-takeoff"></i>Strong Alpha</span></div>
+          <p class="card-text">هذا المشروع يُعدّ من أنضج مشاريع Alpha التي رأيتها. التطبيق يحقق End-to-End فعلياً، مع بنية نظيفة، أمان جيد، تغطية اختبارات قوية، وتوثيق احترافي.</p>
+          <ul class="list">
+            <li class="list-item"><i class="bi bi-check-circle-fill"></i><strong>نقطة القوة الأبرز:</strong> الانضباط الهندسي (Contract-first + Separation + Real Tests).</li>
+            <li class="list-item"><i class="bi bi-check-circle-fill"></i><strong>جاهز للتقييم:</strong> يمكن التحقق منه يدوياً مباشرة بدون محاكاة.</li>
+            <li class="list-item"><i class="bi bi-exclamation-circle-fill"></i><strong>ما يمنعه من Beta:</strong> بريد SMTP حقيقي + نقل توكنات الويب إلى HttpOnly Cookies + توثيق/معالجة حدود Desktop Storage.</li>
+            <li class="list-item"><i class="bi bi-graph-up"></i><strong>مسار التحويل:</strong> إصلاح P0 (1–2 يوم عمل) → اختبار شامل → جاهز لرفع Beta بسهولة.</li>
+          </ul>
+          <div class="tag-list"><span class="tag tag-success">Production-Aware</span><span class="tag tag-success">Maintainable</span><span class="tag tag-success">Scalable-Ready</span><span class="tag tag-accent">Engineering Excellence</span></div>
+        </div>
+      </div>
+    </section>
+    <footer class="footer">
+      <p>تم توليد هذا التقرير تلقائياً من مراجعة شاملة لمشروع <strong>ChatApp</strong> — الإصدار <strong>v0.0.1-alpha</strong> | التاريخ: <strong>Sat Oct 03 2026</strong></p>
+      <p style="margin-top:.5rem;color:rgba(248,250,252,.56)">تصميم احترافي × خرافي × تحليلي — جاهز للعرض واتخاذ القرار</p>
+    </footer>
+  </div>
+</body>
+</html>

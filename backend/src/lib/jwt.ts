@@ -54,6 +54,11 @@ export function refreshTokenExpiryDate(): Date {
   return new Date(Date.now() + ms);
 }
 
+/** Session lifetime in seconds — used as the refresh cookie's `Max-Age`. */
+export function refreshTokenTtlSeconds(): number {
+  return Math.floor(parseDurationToMs(env.JWT_REFRESH_TTL) / 1000);
+}
+
 /** Parses simple durations like "30d", "15m", "1h", "45s". Falls back to 30 days. */
 function parseDurationToMs(input: string): number {
   const match = /^(\d+)\s*(s|m|h|d)$/.exec(input.trim());

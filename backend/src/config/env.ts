@@ -1,5 +1,10 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import { z } from 'zod';
+import { loadSecretFiles } from './secrets.js';
+
+// Fold `NAME_FILE` mounted secrets into `NAME` before anything reads process.env,
+// so the Zod schema below only ever deals with one uniform set of variables.
+loadSecretFiles();
 
 // Placeholders that show up in .env.example, tutorials, or a lazy first guess.
 // None of these should ever reach a production deployment.
@@ -23,6 +28,11 @@ function isWeakSecret(value: string): boolean {
   return normalized.length === 0 || KNOWN_WEAK_SECRETS.has(normalized) || normalized.length < MIN_PRODUCTION_SECRET_LENGTH;
 }
 
+/** `true`/`1`/`yes`/`on`, case-insensitive. Anything else is `false`. */
+function envFlag(value: string): boolean {
+  return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+}
+
 const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -40,29 +50,100 @@ const EnvSchema = z
     MAIL_FROM: z.string().optional(),
     // Optional web client origin; when set, reset emails also include a clickable link.
     APP_WEB_URL: z.string().url().optional(),
+
+    /**
+     * Public origin of this service, used only to build the password-reset link in
+     * the outgoing email. No trailing slash â€” it is concatenated with `/reset-password`.
+     */
+    APP_BASE_URL: z.string().default('http://localhost:4000'),
+
+    // --- Refresh-token cookie (P0: web clients must not hold the refresh token in JS) ---
+    /** `Secure` is forced on in production; this flag only exists to pin it off in dev. */
+    COOKIE_SECURE: z.string().optional(),
+    /** `lax` sends the cookie on top-level navigations, which web clients need after a redirect. */
+    COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+    /** Scoped to the auth routes: the refresh cookie is never sent to /users or /conversations. */
+    COOKIE_PATH: z.string().default('/api/auth'),
+
+    // --- Outbound email (P0: password reset must actually reach the user) ---
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().int().positive().optional(),
+    /** Implicit TLS (port 465). Most providers use STARTTLS on 587 with `SMTP_SECURE=false`. */
+    SMTP_SECURE: z.string().optional(),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    /** Envelope sender (`MAIL FROM`). Must be a mailbox your provider is allowed to use. */
+    SMTP_FROM: z.string().optional(),
+    SMTP_FROM_NAME: z.string().default('ChatApp'),
+
+    // --- Password reset policy ---
+    /**
+     * Default 300s: the cooldown is the only thing limiting how often one mailbox can
+     * be hit. A short window still allows an attacker a steady stream of mail, which is
+     * both a spam problem for the user and a way to get the sending domain throttled.
+     */
+    PASSWORD_RESET_COOLDOWN_SECONDS: z.coerce.number().int().min(0).max(3600).default(300),
+    PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(1440).default(60),
   })
   .superRefine((data, ctx) => {
+    const issue = (field: string, message: string): void => {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message });
+    };
+
     // Weak secrets are a real risk only once this config is what a live
     // service trusts. development and test explicitly allow throwaway
-    // values — see backend/.env.example and vitest.config.ts.
+    // values â€” see backend/.env.example and vitest.config.ts.
     if (data.NODE_ENV !== 'production') {
+      // A half-configured credential pair is still wrong everywhere: the provider
+      // rejects the handshake and every reset email bounces. But the *presence* of
+      // SMTP is only mandatory in production, so that local development and tests
+      // can run without a mail provider.
+      if (Boolean(data.SMTP_USER) !== Boolean(data.SMTP_PASS)) {
+        issue('SMTP_PASS', 'SMTP_USER and SMTP_PASS must be set together, or neither.');
+      }
       return;
     }
+
+    const smtpFields = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_FROM'] as const;
+    const missingSmtp = smtpFields.filter((f) => !data[f]);
+    const firstMissing = missingSmtp[0];
+    if (firstMissing !== undefined) {
+      issue(
+        firstMissing,
+        `${missingSmtp.join(', ')} must be set. Without a real transport a password reset email can never be delivered, so production refuses to boot. Provide the values as literals or as ${firstMissing}_FILE paths (see backend/README.md â†’ Secrets).`,
+      );
+    }
+    if (Boolean(data.SMTP_USER) !== Boolean(data.SMTP_PASS)) {
+      issue('SMTP_PASS', 'SMTP_USER and SMTP_PASS must be set together, or neither.');
+    }
+
     for (const field of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'] as const) {
       if (isWeakSecret(data[field])) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [field],
-          message: `${field} is missing, too short, or a known placeholder. Production requires a long, random secret — generate one with: openssl rand -base64 48`,
-        });
+        issue(
+          field,
+          `${field} is missing, too short, or a known placeholder. Production requires a long, random secret â€” generate one with: openssl rand -base64 48`,
+        );
       }
     }
     if (data.JWT_ACCESS_SECRET === data.JWT_REFRESH_SECRET) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['JWT_REFRESH_SECRET'],
-        message: 'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must not be identical in production.',
-      });
+      issue('JWT_REFRESH_SECRET', 'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must not be identical in production.');
+    }
+
+    if (!data.APP_BASE_URL.startsWith('https://')) {
+      issue(
+        'APP_BASE_URL',
+        'APP_BASE_URL must be an https:// URL in production: it is mailed to users inside the password-reset link.',
+      );
+    }
+
+    // A wildcard origin plus credentialed requests is the textbook way to hand a
+    // cookie-authenticated API to any site on the internet.
+    if (data.CORS_ORIGIN.includes('*')) {
+      issue('CORS_ORIGIN', 'CORS_ORIGIN must list explicit origins in production; "*" is not allowed.');
+    }
+
+    if (data.COOKIE_SAME_SITE === 'none' && !envFlag(data.COOKIE_SECURE ?? '')) {
+      issue('COOKIE_SECURE', 'COOKIE_SAME_SITE=none requires COOKIE_SECURE=true.');
     }
   });
 
@@ -70,10 +151,25 @@ const parsed = EnvSchema.safeParse(process.env);
 
 if (!parsed.success) {
   // Zod's fieldErrors carry only field names and messages, never the offending
-  // value — safe to log even when the failure is about a weak secret.
+  // value â€” safe to log even when the failure is about a weak secret.
   console.error('Invalid environment configuration:', parsed.error.flatten().fieldErrors);
   throw new Error('Invalid environment configuration');
 }
 
 export const env = parsed.data;
 export type Env = z.infer<typeof EnvSchema>;
+
+/** Resolved cookie policy. `Secure` is unconditionally on in production. */
+export const cookieOptions = {
+  secure: env.NODE_ENV === 'production' || envFlag(env.COOKIE_SECURE ?? ''),
+  sameSite: env.COOKIE_SAME_SITE,
+  path: env.COOKIE_PATH,
+  // The refresh token must never be readable from script â€” that is the entire
+  // point of moving it out of JS reach (contract آ§3.1.1).
+  httpOnly: true,
+} as const;
+
+/** Whether a usable outbound mail transport is configured. */
+export const smtpConfigured = Boolean(env.SMTP_HOST && env.SMTP_PORT && env.SMTP_FROM);
+
+export { envFlag };

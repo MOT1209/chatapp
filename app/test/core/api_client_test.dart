@@ -6,6 +6,7 @@ import 'package:chat_app/core/token_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 http.Response _json(int status, Object body, {Map<String, String> headers = const {}}) =>
     http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json', ...headers});
@@ -138,5 +139,126 @@ void main() {
     )..onSessionExpired = () => expired++;
     await expectLater(client.post('/auth/login', body: {}, auth: false), throwsA(isA<ApiException>()));
     expect(expired, 0);
+  });
+
+  test('a native client never claims cookie transport, so it keeps getting the token in the body', () async {
+    final seen = <http.Request>[];
+    final client = ApiClient(
+      baseUrl: 'http://x',
+      tokens: InMemoryTokenStorage(const Tokens('a1', 'r1')),
+      httpClient: MockClient((r) async {
+        seen.add(r);
+        return _json(200, {'accessToken': 'a2', 'refreshToken': 'r2'});
+      }),
+    );
+
+    await client.refreshTokens();
+
+    expect(seen.last.headers.containsKey('X-Client-Platform'), isFalse);
+    expect(seen.last.body, contains('refreshToken'));
+  });
+
+  group('cookie sessions (web)', () {
+    Future<WebTokenStorage> webStore([Map<String, Object> seed = const {}]) async {
+      SharedPreferences.setMockInitialValues(seed);
+      return WebTokenStorage(await SharedPreferences.getInstance());
+    }
+
+    test('never persists the refresh token from an auth response', () async {
+      final store = await webStore();
+      final client = ApiClient(baseUrl: 'http://x', tokens: store, httpClient: MockClient((_) async => _json(200, {})));
+
+      await client.adoptAuthResponse({'accessToken': 'a1', 'refreshToken': 'r1', 'csrfToken': 'c1'});
+
+      final stored = await store.read();
+      expect(stored!.accessToken, 'a1');
+      expect(stored.refreshToken, isEmpty);
+      expect(store.persistsRefreshToken, isFalse);
+    });
+
+    test('drops a refresh token an older build left in localStorage', () async {
+      final store = await webStore({'auth.accessToken': 'old', 'auth.refreshToken': 'legacy'});
+      final client = ApiClient(
+        baseUrl: 'http://x',
+        tokens: store,
+        httpClient: MockClient((_) async => _json(200, {})),
+      );
+
+      await client.adoptAuthResponse({'accessToken': 'a1', 'csrfToken': 'c1'});
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('auth.refreshToken'), isNull);
+    });
+
+    test('refresh sends no token body and echoes the CSRF token', () async {
+      final seen = <http.BaseRequest>[];
+      final client = ApiClient(
+        baseUrl: 'http://x',
+        tokens: await webStore(),
+        httpClient: MockClient((r) async {
+          seen.add(r);
+          if (r.url.path == '/api/auth/csrf') return _json(200, {'csrfToken': 'c1'});
+          if (r.url.path == '/api/auth/refresh') {
+            return _json(200, {'accessToken': 'a2', 'refreshToken': 'r2', 'csrfToken': 'c2'});
+          }
+          return _json(200, {});
+        }),
+      );
+
+      expect(await client.restoreSession(), isTrue);
+
+      final refresh = seen.lastWhere((r) => r.url.path == '/api/auth/refresh') as http.Request;
+      expect(refresh.body, isEmpty);
+      expect(refresh.headers['X-CSRF-Token'], 'c1');
+      expect(refresh.headers['X-Client-Platform'], 'web');
+      expect(refresh.headers.containsKey('Authorization'), isFalse);
+    });
+
+    test('declares cookie transport on login, so the server withholds the refresh token', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(
+        baseUrl: 'http://x',
+        tokens: await webStore(),
+        httpClient: MockClient((r) async {
+          seen.add(r);
+          return _json(200, {'accessToken': 'a1', 'csrfToken': 'c1'});
+        }),
+      );
+
+      await client.post('/auth/login', body: {'username': 'ahmad'}, auth: false);
+
+      expect(seen.last.headers['X-Client-Platform'], 'web');
+    });
+
+    test('a reload with no cookie reports no session instead of failing', () async {
+      final client = ApiClient(
+        baseUrl: 'http://x',
+        tokens: await webStore({'auth.accessToken': 'a1'}),
+        httpClient: MockClient((r) async => _error(401, 'UNAUTHENTICATED', 'No session.')),
+      );
+      expect(await client.restoreSession(), isFalse);
+    });
+
+    test('logout carries the CSRF token and clears local state even when the server fails', () async {
+      final seen = <http.BaseRequest>[];
+      final store = await webStore();
+      final client = ApiClient(
+        baseUrl: 'http://x',
+        tokens: store,
+        httpClient: MockClient((r) async {
+          seen.add(r);
+          throw http.ClientException('offline');
+        }),
+      )..onSessionExpired = () {};
+
+      await client.adoptAuthResponse({'accessToken': 'a1', 'csrfToken': 'c1'});
+      await client.logout();
+
+      final logout = seen.last as http.Request;
+      expect(logout.url.path, '/api/auth/logout');
+      expect(logout.body, isEmpty);
+      expect(logout.headers['X-CSRF-Token'], 'c1');
+      expect(await store.read(), isNull);
+    });
   });
 }

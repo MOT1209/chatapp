@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  csrfHandler,
   forgotPasswordHandler,
   loginHandler,
   logoutHandler,
@@ -25,5 +26,9 @@ router.post('/refresh', authRateLimit, validateBody(refreshSchema), refreshHandl
 router.post('/logout', logoutHandler);
 router.post('/forgot-password', authRateLimit, validateBody(forgotPasswordSchema), forgotPasswordHandler);
 router.post('/reset-password', authRateLimit, validateBody(resetPasswordSchema), resetPasswordHandler);
+
+// Not rate limited like the credential endpoints: a client calls it on every page
+// load, and each call is an HMAC over a cookie the attacker already lacks.
+router.get('/csrf', csrfHandler);
 
 export default router;

@@ -16,8 +16,11 @@ Future<void> main() async {
   final settings = SettingsController(prefs);
   final TokenStorage persistent;
   if (kIsWeb) {
-    // No OS credential store in the browser; documented trade-off in docs/ui-plan.md.
-    persistent = SharedPrefsTokenStorage(prefs);
+    // No OS credential store in the browser. Only the short-lived access token is
+    // kept in localStorage; the refresh token stays in an HttpOnly cookie the
+    // server sets, so XSS cannot read it (docs/api-contract.md §3.1).
+    persistent = WebTokenStorage(prefs);
+    await clearLegacyWebTokens(prefs);
   } else {
     persistent = SecureTokenStorage();
     await migrateLegacyTokens(prefs, persistent);

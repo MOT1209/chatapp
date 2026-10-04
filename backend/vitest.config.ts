@@ -17,6 +17,10 @@ export default defineConfig({
       JWT_ACCESS_SECRET: 'test-access-secret',
       JWT_REFRESH_SECRET: 'test-refresh-secret',
       CORS_ORIGIN: 'http://localhost:5173',
+      // Tests drive password reset back-to-back (e.g. supersession), so the
+      // production cooldown is disabled here. tests/password-reset-mail.test.ts
+      // re-enables it explicitly for the cases that are about the cooldown.
+      PASSWORD_RESET_COOLDOWN_SECONDS: '0',
     },
   },
 });

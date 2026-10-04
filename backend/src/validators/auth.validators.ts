@@ -37,8 +37,14 @@ export const loginSchema = z.object({
 });
 export type LoginBody = z.infer<typeof loginSchema>;
 
+/**
+ * `refreshToken` is optional here: a web client authenticates with the `HttpOnly`
+ * refresh cookie and sends no body at all (docs/api-contract.md §3.1). A string that
+ * *is* present must still be non-empty, so a client sending `{"refreshToken": ""}`
+ * fails fast with a field message instead of silently falling back to the cookie.
+ */
 export const refreshSchema = z.object({
-  refreshToken: z.string().min(1, 'refreshToken is required.'),
+  refreshToken: z.string().min(1, 'refreshToken must not be empty.').optional(),
 });
 
 export const forgotPasswordSchema = z.object({
