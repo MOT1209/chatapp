@@ -12,6 +12,7 @@ import { validateBody, validateQuery } from '../middleware/validate.js';
 import { messageRateLimit } from '../middleware/rate-limit.js';
 import {
   createConversationSchema,
+  listConversationsQuerySchema,
   markReadSchema,
   messagesQuerySchema,
   sendMessageSchema,
@@ -21,7 +22,7 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', listHandler);
+router.get('/', validateQuery(listConversationsQuerySchema), listHandler);
 router.post('/', validateBody(createConversationSchema), createHandler);
 router.get('/:id/messages', validateQuery(messagesQuerySchema), messagesHandler);
 router.post('/:id/messages', messageRateLimit, validateBody(sendMessageSchema), sendMessageHandler);

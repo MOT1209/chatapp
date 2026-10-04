@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { AppError } from '../lib/errors.js';
 import { logger } from '../lib/logger.js';
+import { getRequestId } from './request-context.js';
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
   if (err instanceof AppError) {
@@ -17,7 +18,10 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return;
   }
 
-  logger.error('Unhandled error', describeError(err));
+  // The request id ties this failure to the request's access log entry (§17).
+  // Read defensively: this handler is also invoked directly by unit tests with a
+  // bare response object that never went through requestContext().
+  logger.error('Unhandled error', { requestId: getRequestId(res), ...describeError(err) });
 
   res.status(500).json({
     error: { code: 'SERVER_ERROR', message: 'Something went wrong. Please try again.' },

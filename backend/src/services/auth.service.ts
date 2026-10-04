@@ -299,22 +299,51 @@ export async function requestPasswordReset(email: string): Promise<{ resetToken:
 
 export async function resetPassword(rawToken: string, newPassword: string): Promise<void> {
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-  const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
 
-  if (!record || record.usedAt || record.expiresAt.getTime() < Date.now()) {
+  // Hash before claiming: an invalid password must not burn a valid token — the
+  // user would otherwise have to request (and wait out the cooldown for) a new
+  // email just because they mistyped their new password. Password *shape* is
+  // already validated at the route, so this only fails on a hard error.
+  const passwordHash = await hashPassword(newPassword);
+
+  // Resolve the owning user up front so the transaction below can be fully
+  // atomic; the claim itself decides whether it may run at all.
+  const existing = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    select: { userId: true },
+  });
+  if (!existing) {
     throw validationError(
       { token: 'This reset link is invalid or has expired.' },
       'This reset link is invalid or has expired.',
     );
   }
+  const userId = existing.userId;
 
-  const passwordHash = await hashPassword(newPassword);
+  // Atomic claim (repair brief §8): one UPDATE with the full validity condition
+  // (tokenHash = X AND usedAt IS NULL AND expiresAt > now). Two concurrent
+  // requests with the same token race on this single statement — Postgres
+  // row-locks the target row, so exactly one of them sees count = 1 and may
+  // change the password; the loser gets the same error as an already-used
+  // link, and the whole operation stays in one transaction.
+  await prisma.$transaction(async (tx) => {
+    const claimed = await tx.passwordResetToken.updateMany({
+      where: { tokenHash, usedAt: null, expiresAt: { gt: new Date() } },
+      data: { usedAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      throw validationError(
+        { token: 'This reset link is invalid or has expired.' },
+        'This reset link is invalid or has expired.',
+      );
+    }
 
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
-    prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+    await tx.user.update({ where: { id: userId }, data: { passwordHash } });
     // A password reset should kill every existing session, stolen or not.
-    prisma.session.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
-  ]);
-  wsHub.closeUser(record.userId, 4401, 'password reset');
+    await tx.session.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  });
+  wsHub.closeUser(userId, 4401, 'password reset');
 }

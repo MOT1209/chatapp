@@ -5,11 +5,15 @@ import healthRouter from './routes/health.js';
 import apiRouter from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { securityHeaders } from './middleware/security-headers.js';
+import { requestContext } from './middleware/request-context.js';
 
 export function createApp(): Express {
   const app = express();
 
   app.set('trust proxy', 1);
+  // First middleware: every request — even ones that error out early — gets an
+  // X-Request-Id response header and one structured log line (§17).
+  app.use(requestContext());
   app.use(securityHeaders());
   app.use(
     cors({

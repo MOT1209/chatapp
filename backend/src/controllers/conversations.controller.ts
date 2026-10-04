@@ -2,11 +2,12 @@ import type { Request, Response } from 'express';
 import * as conversationService from '../services/conversation.service.js';
 import * as messageService from '../services/message.service.js';
 import { asyncHandler } from '../lib/async-handler.js';
-import type { MessagesQuery } from '../validators/conversations.validators.js';
+import type { ListConversationsQuery, MessagesQuery } from '../validators/conversations.validators.js';
 
 export const listHandler = asyncHandler(async (req: Request, res: Response) => {
-  const conversations = await conversationService.listForUser(req.userId!);
-  res.status(200).json({ conversations });
+  const { cursor, limit } = res.locals.query as ListConversationsQuery;
+  const page = await conversationService.listForUser(req.userId!, { cursor: cursor ?? null, limit });
+  res.status(200).json(page);
 });
 
 export const createHandler = asyncHandler(async (req: Request, res: Response) => {

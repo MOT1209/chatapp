@@ -70,6 +70,9 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
     let framesInWindow = 0;
     alive.add(socket);
     socket.on('pong', () => alive.add(socket));
+    // §17: log the socket lifecycle — open, authentication outcome, close code
+    // and reason. Only the user ID (after authentication) is ever attached;
+    // tokens and message payloads are never logged.
 
     /** Sliding-ish window: true if this heavy frame is over the per-socket budget. */
     function overBudget(): boolean {
@@ -105,7 +108,7 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
       });
     });
 
-    socket.on('close', () => {
+    socket.on('close', (code: number, reason: Buffer) => {
       if (authTimer) {
         clearTimeout(authTimer);
         authTimer = null;
@@ -114,6 +117,13 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
         clearTimeout(expiryTimer);
         expiryTimer = null;
       }
+      logger.info('ws closed', {
+        // Safe identity only; the reason string is set by this server, never
+        // by the client, so it cannot smuggle arbitrary text into the logs.
+        userId: session?.userId,
+        code,
+        reason: reason.toString('utf8'),
+      });
       if (session) {
         const { userId } = session;
         handleDisconnect(userId, socket).catch((err: unknown) => {
@@ -142,6 +152,7 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
         }
         const result = verifyAccessToken(frame.payload.token);
         if (!result.ok) {
+          logger.warn('ws authentication failed', { reason: result.reason });
           send(socket, {
             type: 'error',
             payload: {
@@ -153,6 +164,7 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
           return;
         }
         session = { userId: result.userId, expiresAtMs: result.expiresAtMs };
+        logger.info('ws authenticated', { userId: result.userId });
         // setTimeout caps at ~24.8 days; access tokens live minutes, but clamp anyway.
         const remainingMs = Math.min(Math.max(result.expiresAtMs - Date.now(), 0), 2 ** 31 - 1);
         expiryTimer = setTimeout(() => socket.close(4401, 'token expired'), remainingMs);

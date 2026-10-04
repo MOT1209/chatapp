@@ -51,19 +51,63 @@ async function unreadCounts(conversationIds: string[], userId: string): Promise<
   return new Map(grouped.map((g) => [g.conversationId, g._count._all]));
 }
 
-export async function listForUser(userId: string): Promise<ConversationDTO[]> {
+export type ConversationListOptions = {
+  /** Opaque cursor from a previous page's `nextCursor`. */
+  cursor?: string | null;
+  /** Page size; validated upstream (1–100). Default 50. */
+  limit?: number;
+};
+
+export type ConversationListPage = {
+  conversations: ConversationDTO[];
+  nextCursor: string | null;
+};
+
+export const DEFAULT_CONVERSATION_LIMIT = 50;
+
+/**
+ * Cursor-paginated conversation list (repair brief §15). Ordered by
+ * `updatedAt` desc with the id as tiebreaker; the response carries a
+ * `nextCursor` when more pages exist. Existing clients that ignore
+ * `cursor`/`nextCursor` keep working — they just see the first page.
+ */
+export async function listForUser(userId: string, options: ConversationListOptions = {}): Promise<ConversationListPage> {
+  const limit = options.limit ?? DEFAULT_CONVERSATION_LIMIT;
+  const decoded = options.cursor ? decodeCursor(options.cursor) : null;
+  if (options.cursor && !decoded) {
+    throw validationError({ cursor: 'Invalid cursor.' });
+  }
+
   const conversations = await prisma.conversation.findMany({
-    where: { members: { some: { userId } } },
+    where: {
+      members: { some: { userId } },
+      ...(decoded
+        ? {
+            // Strictly after the cursor row in the (updatedAt desc, id desc) order.
+            OR: [
+              { updatedAt: { lt: new Date(decoded.at) } },
+              { updatedAt: new Date(decoded.at), id: { lt: decoded.id } },
+            ],
+          }
+        : {}),
+    },
     include: conversationInclude,
-    orderBy: { updatedAt: 'desc' },
+    orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+    take: limit + 1,
   });
 
+  const hasMore = conversations.length > limit;
+  const page = hasMore ? conversations.slice(0, limit) : conversations;
   const counts = await unreadCounts(
-    conversations.map((c) => c.id),
+    page.map((c) => c.id),
     userId,
   );
+  const last = page[page.length - 1];
 
-  return conversations.map((c) => toDTO(c, userId, counts.get(c.id) ?? 0));
+  return {
+    conversations: page.map((c) => toDTO(c, userId, counts.get(c.id) ?? 0)),
+    nextCursor: hasMore && last ? encodeCursor({ id: last.id, at: last.updatedAt.toISOString() }) : null,
+  };
 }
 
 export async function createDirect(userId: string, participantId: string): Promise<ConversationDTO> {
@@ -148,9 +192,10 @@ export async function getMessages(
       conversationId,
       ...(decoded
         ? {
+            // Strictly after the cursor row in the (createdAt desc, id desc) order.
             OR: [
-              { createdAt: { lt: new Date(decoded.createdAt) } },
-              { createdAt: new Date(decoded.createdAt), id: { lt: decoded.id } },
+              { createdAt: { lt: new Date(decoded.at) } },
+              { createdAt: new Date(decoded.at), id: { lt: decoded.id } },
             ],
           }
         : {}),
@@ -166,7 +211,7 @@ export async function getMessages(
 
   return {
     messages: page.reverse().map((m) => serializeMessage(m)),
-    nextCursor: hasMore && oldest ? encodeCursor({ id: oldest.id, createdAt: oldest.createdAt.toISOString() }) : null,
+    nextCursor: hasMore && oldest ? encodeCursor({ id: oldest.id, at: oldest.createdAt.toISOString() }) : null,
   };
 }
 

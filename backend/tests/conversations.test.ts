@@ -3,6 +3,8 @@ import request from 'supertest';
 import type { Express } from 'express';
 import { buildTestApp, registerUser } from './helpers/test-app.js';
 import { resetDb } from './helpers/db.js';
+import { prisma } from '../src/lib/prisma.js';
+import { listConversationsQuerySchema } from '../src/validators/conversations.validators.js';
 
 let app: Express;
 
@@ -119,5 +121,71 @@ describe('GET /api/conversations', () => {
     const res = await request(app).get('/api/conversations').set('Authorization', `Bearer ${a.accessToken}`);
     expect(res.status).toBe(200);
     expect(res.body.conversations).toEqual([]);
+  });
+
+  it('paginates with limit and nextCursor without losing conversations', async () => {
+    const a = await registerUser(app, { username: 'pagerA' });
+    const others = [];
+    for (const name of ['pagerB', 'pagerC', 'pagerD']) {
+      others.push(await registerUser(app, { username: name }));
+    }
+    const convIds: string[] = [];
+    for (const other of others) {
+      const res = await request(app)
+        .post('/api/conversations')
+        .set('Authorization', `Bearer ${a.accessToken}`)
+        .send({ participantId: other.user.id });
+      convIds.push(String(res.body.id));
+    }
+
+    // Make the ordering deterministic: conv2 newest, conv1 middle, conv0 oldest.
+    const base = Date.now() - 60_000;
+    await prisma.conversation.update({ where: { id: convIds[0] }, data: { updatedAt: new Date(base) } });
+    await prisma.conversation.update({ where: { id: convIds[1] }, data: { updatedAt: new Date(base + 20_000) } });
+    await prisma.conversation.update({ where: { id: convIds[2] }, data: { updatedAt: new Date(base + 40_000) } });
+
+    const first = await request(app)
+      .get('/api/conversations')
+      .query({ limit: 2 })
+      .set('Authorization', `Bearer ${a.accessToken}`);
+    expect(first.status).toBe(200);
+    expect(first.body.conversations.map((c: { id: string }) => c.id)).toEqual([convIds[2], convIds[1]]);
+    expect(typeof first.body.nextCursor).toBe('string');
+
+    const second = await request(app)
+      .get('/api/conversations')
+      .query({ limit: 2, cursor: first.body.nextCursor })
+      .set('Authorization', `Bearer ${a.accessToken}`);
+    expect(second.status).toBe(200);
+    expect(second.body.conversations.map((c: { id: string }) => c.id)).toEqual([convIds[0]]);
+    expect(second.body.nextCursor).toBeNull();
+  });
+
+  it('rejects an invalid cursor with VALIDATION_ERROR', async () => {
+    const a = await registerUser(app, { username: 'badcursor' });
+    const res = await request(app)
+      .get('/api/conversations')
+      .query({ cursor: 'not-a-real-cursor' })
+      .set('Authorization', `Bearer ${a.accessToken}`);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.fields.cursor).toBeDefined();
+  });
+
+  it('rejects out-of-range limits', async () => {
+    const a = await registerUser(app, { username: 'limitcheck' });
+    for (const limit of ['0', '101']) {
+      const res = await request(app)
+        .get('/api/conversations')
+        .query({ limit })
+        .set('Authorization', `Bearer ${a.accessToken}`);
+      expect(res.status, `limit=${limit} must be rejected`).toBe(400);
+    }
+  });
+
+  it('defaults to a 50-item page so old clients stay bounded', () => {
+    // The default matters for clients that send no query params at all.
+    expect(listConversationsQuerySchema.parse({}).limit).toBe(50);
+    expect(listConversationsQuerySchema.parse({}).cursor).toBeUndefined();
   });
 });

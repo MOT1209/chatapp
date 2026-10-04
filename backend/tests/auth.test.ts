@@ -484,4 +484,34 @@ describe('POST /api/auth/reset-password', () => {
       .send({ token: result!.resetToken, newPassword: 'whatever-new-123' });
     expect(res.status).toBe(400);
   });
+
+  it('lets exactly one of two simultaneous requests claim the same token (concurrency race)', async () => {
+    // Repair brief §8: read-then-update allowed a check-then-act race where two
+    // concurrent resets could both pass the usedAt check. The atomic claim must
+    // let exactly one through and give the other the normal invalid-token error.
+    await registerUser(app, { username: 'racer', email: 'racer@example.com' });
+    const result = await authService.requestPasswordReset('racer@example.com');
+    expect(result?.resetToken).toBeTruthy();
+
+    const attempts = await Promise.allSettled([
+      request(app)
+        .post('/api/auth/reset-password')
+        .send({ token: result!.resetToken, newPassword: 'race-winner-pass' }),
+      request(app)
+        .post('/api/auth/reset-password')
+        .send({ token: result!.resetToken, newPassword: 'race-winner-pass' }),
+    ]);
+
+    const statuses = attempts.map((attempt) =>
+      attempt.status === 'fulfilled' ? attempt.value.status : (attempt.reason as { status?: number }).status,
+    );
+    expect(statuses.filter((status) => status === 204)).toHaveLength(1);
+    expect(statuses.filter((status) => status === 400)).toHaveLength(1);
+
+    // The winner's password actually took effect.
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'racer@example.com', password: 'race-winner-pass' });
+    expect(login.status).toBe(200);
+  });
 });
