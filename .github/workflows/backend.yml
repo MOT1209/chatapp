@@ -1,15 +1,20 @@
 name: backend
 
+# No `paths:` filter on purpose (audit F-26). A path-filtered workflow reports no
+# status at all for a PR that does not touch its paths, so if the job is ever
+# configured as a required status check the PR is blocked forever with no way to
+# see why — or, depending on the ruleset, the protection silently does not apply.
+# Backend CI is a few minutes, so it runs on every PR and is always reportable.
 on:
   push:
     branches: [main]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend.yml'
   pull_request:
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend.yml'
+
+# Superseded runs on the same PR are cancelled; main runs are never cancelled so
+# the recorded result always matches what landed.
+concurrency:
+  group: backend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ci:

@@ -16,7 +16,8 @@ Everything below is what the frontend is built against. The frontend makes **no 
 | API prefix | every REST route is mounted under `/api` |
 | Content type | `application/json` for both request and response bodies |
 | Auth | `Authorization: Bearer <accessToken>` on every protected route |
-| Tokens | both the access and the refresh token are returned in the JSON body. The client stores them in platform secure storage on Android/iOS and in `shared_preferences` on web (`localStorage`) and desktop |
+| Tokens | register/login/refresh return `accessToken` in the JSON body. The refresh token additionally travels in an `HttpOnly` cookie scoped to `/api/auth`; native clients also receive it in the body. Web clients receive `csrfToken` and must echo it on the cookie-authenticated calls. See §3.1.1 and §3.1.2 |
+| Request ID | every response carries an `X-Request-Id` header. See §1.4 |
 | IDs | every entity has an `id` of type string. The backend may use UUIDs or CUIDs — the frontend treats it as an opaque string and never parses it |
 | Timestamps | ISO 8601 in UTC, e.g. `"2026-09-28T14:03:11.000Z"`. The frontend formats them for display |
 | Money/amounts | not applicable at this stage |
@@ -63,6 +64,50 @@ The frontend shows `fields` next to the matching form input. Because `message` a
 ### 1.3 Rate limiting
 
 Auth routes are rate limited. On `RATE_LIMITED` the backend should send a `Retry-After` header in seconds, and expose it via CORS (`Access-Control-Expose-Headers: Retry-After`) so web clients can read it. The client tells the user how long to wait when the header is present.
+
+Each auth endpoint has its **own** bucket rather than sharing one, because the budgets have very different shapes and sharing them couples unrelated failures:
+
+| Endpoint | Budget | Why |
+| --- | --- | --- |
+| `POST /api/auth/register` | 10 / 15 min / IP | bcrypt-costly write |
+| `POST /api/auth/login` | 20 / 15 min / IP | brute-force protection |
+| `POST /api/auth/refresh` | 60 / 15 min / IP | routine traffic; several devices can share an IP |
+| `POST /api/auth/forgot-password` | 5 / 15 min / IP | triggers outbound email, so it is an amplifier |
+| `POST /api/auth/reset-password` | 10 / 15 min / IP | bcrypt plus a password write |
+
+A brute-force run against `login` must not consume the `refresh` budget, or an attacker could deny service to a client's session renewal merely by hammering login from the same address. All are per-IP: these routes are pre-auth, so there is no user id to key on. The per-account cooldown on `forgot-password` is a separate mechanism and is documented in §3.1.
+
+Search and message sending are additionally limited per authenticated user.
+
+### 1.4 Request ID
+
+Every HTTP response carries an `X-Request-Id` header.
+
+- If the client sent an `X-Request-Id` matching `^[A-Za-z0-9._-]{8,64}$`, it is echoed back; otherwise the server generates a UUID.
+- The value is a **correlation handle only**. It is never a secret, never a credential, and never anything a client may present to gain access. Treat it as untrusted input.
+- The same ID appears in the server's structured log lines for the request, including the unhandled-error log.
+
+The frontend does not currently send or use it; it is provided so a user-reported failure can be traced to exactly one request.
+
+---
+
+## 1.5 Health and readiness
+
+Both are unauthenticated and outside the `/api` prefix.
+
+| Endpoint | Meaning | Depends on the database |
+| --- | --- | --- |
+| `GET /health` | liveness: the process is up and serving | **No** |
+| `GET /ready` | readiness: the process is up *and* its dependencies are usable | Yes (`SELECT 1`) |
+
+`/health` must stay cheap and database-free so a liveness probe can be aggressive without adding load. `/ready` is what a load balancer or orchestrator should route on: it returns 503 when PostgreSQL is unreachable.
+
+```json
+// 200
+{ "status": "ok", "service": "chatapp-api", "checks": { "database": "up" } }
+// 503
+{ "status": "degraded", "service": "chatapp-api", "checks": { "database": "down" } }
+```
 
 ---
 
@@ -408,9 +453,16 @@ Errors: `VALIDATION_ERROR` (400), `UNAUTHENTICATED` (401).
 
 ### 3.3 Conversations
 
-#### `GET /api/conversations` → 200 · protected
+#### `GET /api/conversations?cursor=&limit=50` → 200 · protected
 
-Returns every conversation for the current user, **sorted by `updatedAt` descending** (most recent first). The frontend renders the list in the returned order without re-sorting.
+Returns the current user's conversations, **sorted by `updatedAt` descending** (most recent first). The frontend renders the list in the returned order without re-sorting.
+
+Query parameters (both optional):
+
+| Parameter | Default | Notes |
+| --- | --- | --- |
+| `cursor` | — | Opaque cursor from a previous page's `nextCursor`. Omit for the first page |
+| `limit` | `50` | 1–100 |
 
 Response:
 
@@ -434,15 +486,18 @@ Response:
       "unreadCount": 2,
       "updatedAt": "2026-09-28T14:02:00.000Z"
     }
-  ]
+  ],
+  "nextCursor": "eyJpZCI6ImMxIiwiYXQiOiIyMDI2LTA5LTI4VDE0OjAyOjAwLjAwMFoifQ"
 }
 ```
 
 Notes:
-- An empty array means "no conversations yet" → the frontend shows an empty state with a *new conversation* call to action. It is not an error.
+- `nextCursor` is `null` on the last page. The ordering is total (`updatedAt` desc, then `id` desc as a tiebreaker), so a cursor names an exact position and paging cannot skip or repeat a row.
+- **Backward compatible:** a client that sends neither `cursor` nor `limit` and ignores `nextCursor` still gets the first page and behaves exactly as before. Pagination only becomes relevant to a client that needs more than one page.
+- An empty `conversations` array means "no conversations yet" → the frontend shows an empty state with a *new conversation* call to action. It is not an error.
 - `lastMessage` is `null` for a conversation that was created but never had a message.
 
-Errors: `UNAUTHENTICATED` (401).
+Errors: `UNAUTHENTICATED` (401), `VALIDATION_ERROR` (400) for a malformed `cursor` or a `limit` outside 1–100.
 
 #### `POST /api/conversations` → 200 · protected
 

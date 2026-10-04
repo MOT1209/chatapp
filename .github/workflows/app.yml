@@ -1,17 +1,17 @@
 name: app
 
+# No `paths:` filter on `ci` (audit F-26): a path-filtered workflow reports no
+# status for a PR that does not touch its paths, which makes it unusable as a
+# required status check. Format/analyze/test is cheap, so it always runs.
 on:
   push:
     branches: [main]
-    paths:
-      - 'app/**'
-      - 'scripts/**'
-      - '.github/workflows/app.yml'
   pull_request:
-    paths:
-      - 'app/**'
-      - 'scripts/**'
-      - '.github/workflows/app.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: app-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FLUTTER_VERSION: 3.47.5
@@ -52,9 +52,13 @@ jobs:
       - name: Build web
         run: flutter build web --release
 
-  # Release builds prove each platform compiles; they are not signed or published.
+  # Proves each platform still compiles. Deliberately NOT gated on `needs: ci`,
+  # and deliberately not a required status check: the full matrix costs many
+  # runner-minutes per PR and its only job is a compile check, so it runs on main
+  # pushes and on manual dispatch only. Required protection lives on `ci` and
+  # `release-tooling`, which both always report (see the note on `on:` above).
   build:
-    needs: ci
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:

@@ -83,14 +83,24 @@ npm run dev          # backend + Flutter web on http://localhost:5173 in paralle
 
 Deployment is postponed; how to resume on Render: [`docs/deployment.md`](docs/deployment.md).
 
-Health check:
+Health and readiness:
 
 ```bash
 curl http://localhost:4000/health
-# {"status":"ok","service":"chatapp-api"}
+# {"status":"ok","service":"chatapp-api"}          liveness: no database access
+
+curl http://localhost:4000/ready
+# {"status":"ok",...,"checks":{"database":"up"}}  readiness: 503 if PostgreSQL is down
 ```
 
+Every response carries an `X-Request-Id` header, and the same id appears in the
+server's structured logs for that request.
+
 ## Environment variables
+
+Full reference with defaults and required/optional status:
+[`backend/.env.example`](backend/.env.example). Startup validates every value and
+refuses to boot on a bad one rather than falling back to an unsafe default.
 
 ### App (compile-time, `--dart-define`)
 
@@ -103,19 +113,36 @@ Example: `flutter run --dart-define=API_URL=http://10.0.2.2:4000 --dart-define=W
 
 ### Backend (`backend/.env`)
 
+Highlights only — see `.env.example` for the full list.
+
 | Variable | Purpose |
 | --- | --- |
 | `NODE_ENV` | `development` / `test` / `production` |
 | `PORT` | HTTP port (default `4000`) |
-| `CORS_ORIGIN` | Comma-separated allowed origins |
+| `CORS_ORIGIN` | Comma-separated allowed origins; no wildcard in production |
+| `TRUST_PROXY` | Number of reverse proxies in front of the API (default `1`). Every per-IP rate limiter keys on `req.ip`, so set this to match reality |
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_ACCESS_SECRET` | HMAC secret for access tokens. In production must be long, random, and distinct from `JWT_REFRESH_SECRET` — the server refuses to start otherwise. Short/placeholder values are fine in development and test |
-| `JWT_REFRESH_SECRET` | HMAC secret for refresh tokens. Same production requirement as above |
-| `JWT_ACCESS_TTL` | Access token TTL (default `15m`) |
-| `JWT_REFRESH_TTL` | Refresh token TTL (default `30d`) |
-| `BCRYPT_ROUNDS` | bcrypt cost factor for password hashing (default `10`) |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | HMAC secrets. In production they must be long, random and distinct — the server refuses to start otherwise. Each also accepts a `*_FILE` variant for secret mounts |
+| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | Access / refresh token TTL (default `15m` / `30d`) |
+| `BCRYPT_ROUNDS` | bcrypt cost factor (default `10`) |
+| `SMTP_*`, `APP_BASE_URL` | Outbound mail for password reset. **Required in production** — startup fails without a transport |
+| `PASSWORD_RESET_*` | Reset link lifetime and the per-account send cooldown |
+| `COOKIE_*` | HttpOnly refresh-cookie policy |
+| `CLEANUP_BATCH_SIZE`, `SESSION_RETENTION_DAYS`, `RESET_TOKEN_RETENTION_DAYS` | Budgets for `npm run cleanup` |
 
 `.env` is ignored by git. Never commit real secrets.
+
+### Scheduled maintenance
+
+Expired and revoked security bookkeeping rows are deleted by a scheduled job:
+
+```bash
+npm run cleanup            # one bounded, idempotent pass
+npm run cleanup -- --dry-run   # report what would be deleted
+```
+
+Run it daily from cron or a platform scheduler. It never touches rows that are
+still usable, so it is safe against a live service.
 
 ## Development commands
 
@@ -128,6 +155,7 @@ Backend (`backend/`):
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run lint` | ESLint |
 | `npm test` | Tests (needs Postgres, see `backend/README.md`) |
+| `npm run cleanup` | One bounded pass of the session/reset-token maintenance job |
 
 App (`app/`):
 
