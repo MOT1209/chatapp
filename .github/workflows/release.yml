@@ -134,7 +134,7 @@ jobs:
           printf '{"API_URL":"%s","WS_URL":"%s"}\n' "${API_URL:-http://localhost:4000}" "${WS_URL:-ws://localhost:4000/ws}" > defines.json
       - name: Build web
         shell: bash
-        run: flutter build web --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --dart-define-from-file=defines.json
+        run: flutter build web --release --no-web-resources-cdn --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --dart-define-from-file=defines.json
       - name: Package
         run: |
           mkdir -p ../dist

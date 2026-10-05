@@ -90,3 +90,20 @@ services:
 - **Single instance only.** The realtime hub is in-memory (see [architecture](./architecture.md)).
 - **No email provider yet.** In production `forgot-password` returns 202 and sends nothing.
 - With `rootDir: backend`, Render deploys only when files under `backend/` change.
+
+## Hosting the web build
+
+The web client is a static bundle (`flutter build web --release --no-web-resources-cdn`, output in
+`app/build/web`). Two requirements for whatever serves it:
+
+- **Rewrite unknown paths to `index.html`** (a single-page-app fallback; requests for a path with a
+  file extension, such as `/missing.js`, should still 404). The password-reset email links to
+  `<APP_BASE_URL>/reset-password?token=…`, which is a route inside the app, not a file; without the
+  rewrite that link returns 404 and the reset can never be completed from the email.
+- Serve it from the origin in `APP_BASE_URL` and list that origin in the backend's `CORS_ORIGIN`.
+
+`--no-web-resources-cdn` is deliberate. Without it the app fetches CanvasKit and its fonts from
+`gstatic.com` on every first visit, which sends each visitor's IP address to Google, fails on a network
+that blocks it, and cannot be covered by a strict `Content-Security-Policy`. With it the bundle is larger
+(about 42 MB on disk, of which a browser downloads one ~7 MB CanvasKit variant) and the app contacts only
+its own origin and the API; this was checked in Chromium by recording every host the page contacts.

@@ -50,7 +50,10 @@ jobs:
       - name: Test
         run: flutter test
       - name: Build web
-        run: flutter build web --release
+        # --no-web-resources-cdn bundles CanvasKit and the fonts instead of fetching them from
+        # gstatic.com at runtime, so the app makes no third-party requests (users' IPs are not
+        # sent to Google) and also works on a restricted network. CI builds what is shipped.
+        run: flutter build web --release --no-web-resources-cdn
 
   # Proves each platform still compiles. Deliberately NOT gated on `needs: ci`,
   # and deliberately not a required status check: the full matrix costs many

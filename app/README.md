@@ -31,7 +31,7 @@ Cleartext HTTP is allowed in Android **debug** builds only.
 dart format --set-exit-if-changed lib test
 flutter analyze
 flutter test
-flutter build web --release
+flutter build web --release --no-web-resources-cdn
 ```
 
 ## Layout
