@@ -3,6 +3,7 @@ import { createWsServer } from './realtime/ws-server.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
+import { describeError } from './middleware/error-handler.js';
 
 const app = createApp();
 const server = app.listen(env.PORT, () => {
@@ -16,7 +17,7 @@ const wss = createWsServer(server);
 prisma.user
   .updateMany({ where: { isOnline: true }, data: { isOnline: false } })
   .catch((err: unknown) => {
-    logger.error('failed to reset presence on boot', { err: err instanceof Error ? err.message : String(err) });
+    logger.error('failed to reset presence on boot', describeError(err));
   });
 
 function shutdown(signal: string): void {
@@ -38,5 +39,5 @@ function shutdown(signal: string): void {
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('unhandledRejection', (reason) => {
-  logger.error('unhandled rejection', { err: reason instanceof Error ? reason.message : String(reason) });
+  logger.error('unhandled rejection', describeError(reason));
 });

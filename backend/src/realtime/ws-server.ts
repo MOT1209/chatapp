@@ -7,6 +7,7 @@ import { logger } from '../lib/logger.js';
 import { MAX_BUFFERED_BYTES, wsHub } from './ws-hub.js';
 import { markRead } from '../services/message.service.js';
 import { assertMember, getOtherMemberIds } from '../services/conversation.service.js';
+import { describeError } from '../middleware/error-handler.js';
 import { clientFrameSchema, type ValidatedClientFrame } from '../validators/realtime.validators.js';
 import type { ServerFrame } from '../types/realtime.js';
 
@@ -138,7 +139,7 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
         return;
       }
       handleMessage(raw).catch((err: unknown) => {
-        logger.error('ws message handler failed', { err: err instanceof Error ? err.message : String(err) });
+        logger.error('ws message handler failed', describeError(err));
       });
     });
 
@@ -161,7 +162,7 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
       if (session) {
         const { userId } = session;
         handleDisconnect(userId, socket).catch((err: unknown) => {
-          logger.error('ws disconnect handler failed', { err: err instanceof Error ? err.message : String(err) });
+          logger.error('ws disconnect handler failed', describeError(err));
         });
       }
     });
@@ -222,7 +223,7 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
         } catch (err) {
           // Presence bookkeeping failed; don't leave a registered socket the client
           // was never told is ready. Closing triggers the normal disconnect cleanup.
-          logger.error('ws connect handler failed', { err: err instanceof Error ? err.message : String(err) });
+          logger.error('ws connect handler failed', describeError(err));
           socket.close(1011, 'internal error');
           return;
         }
@@ -345,7 +346,7 @@ async function handleRead(
     // per docs/api-contract.md §4.3 — including the `read` broadcast it sends.
     await markRead(userId, payload.conversationId, payload.messageId);
   } catch (err) {
-    logger.warn('ws read frame failed', { userId, err: err instanceof Error ? err.message : String(err) });
+    logger.warn('ws read frame failed', { userId, ...describeError(err) });
   }
 }
 
