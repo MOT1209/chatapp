@@ -34,12 +34,12 @@ class ChatApi {
     return _storeSession(json);
   }
 
-/// Contract §3.1: a failed logout request must not block logout on the client.
-///
-/// The client owns this call rather than posting directly, because on web the
-/// refresh token is a cookie and the request needs the CSRF header; it also drops
-/// the CSRF token and local state whether or not the server answered.
-Future<void> logout() => client.logout();
+  /// Contract §3.1: a failed logout request must not block logout on the client.
+  ///
+  /// The client owns this call rather than posting directly, because on web the
+  /// refresh token is a cookie and the request needs the CSRF header; it also drops
+  /// the CSRF token and local state whether or not the server answered.
+  Future<void> logout() => client.logout();
 
   Future<bool> hasStoredSession() async => await _tokens.read() != null;
 

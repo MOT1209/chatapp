@@ -23,12 +23,12 @@ class SessionController extends ChangeNotifier {
   ApiException? _restoreError;
   ApiException? get restoreError => _restoreError;
 
-/// Contract §5.1: validate any stored token with `GET /users/me` on boot.
-///
-/// On web the stored access token is the only thing that survives a reload, so the
-/// refresh cookie has to be re-adopted first — otherwise `GET /users/me` would be
-/// sent with a token the server may already have rotated away from.
-Future<void> restore() async {
+  /// Contract §5.1: validate any stored token with `GET /users/me` on boot.
+  ///
+  /// On web the stored access token is the only thing that survives a reload, so the
+  /// refresh cookie has to be re-adopted first — otherwise `GET /users/me` would be
+  /// sent with a token the server may already have rotated away from.
+  Future<void> restore() async {
     _restoreError = null;
     _status = SessionStatus.unknown;
     notifyListeners();

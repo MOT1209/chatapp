@@ -44,8 +44,7 @@ class ApiClient {
 
   Future<dynamic> get(String path, {Map<String, String>? query}) => _request('GET', path, query: query);
 
-  Future<dynamic> post(String path, {Object? body, bool auth = true}) =>
-      _request('POST', path, body: body, auth: auth);
+  Future<dynamic> post(String path, {Object? body, bool auth = true}) => _request('POST', path, body: body, auth: auth);
 
   Future<dynamic> patch(String path, {Object? body}) => _request('PATCH', path, body: body);
 
@@ -151,8 +150,7 @@ class ApiClient {
   }
 
   /// The only two calls whose authority is the cookie, so the only two that need CSRF.
-  static bool _isCookieAuthenticated(String path) =>
-      path == '/auth/refresh' || path == '/auth/logout';
+  static bool _isCookieAuthenticated(String path) => path == '/auth/refresh' || path == '/auth/logout';
 
   /// Returns true when new tokens were stored. Concurrent callers share one call.
   Future<bool> refreshTokens() => _refreshing ??= _doRefresh().whenComplete(() => _refreshing = null);
@@ -164,14 +162,16 @@ class ApiClient {
     if (!_usesRefreshCookie && (stored == null || stored.refreshToken.isEmpty)) return false;
 
     try {
-      final json = await _request(
-        'POST',
-        '/auth/refresh',
-        // Web sends no body at all: the cookie travels automatically and the CSRF
-        // header is what proves this really is the app talking.
-        body: _usesRefreshCookie ? null : {'refreshToken': stored?.refreshToken ?? ''},
-        auth: false,
-      ) as Map<String, dynamic>;
+      final json =
+          await _request(
+                'POST',
+                '/auth/refresh',
+                // Web sends no body at all: the cookie travels automatically and the CSRF
+                // header is what proves this really is the app talking.
+                body: _usesRefreshCookie ? null : {'refreshToken': stored?.refreshToken ?? ''},
+                auth: false,
+              )
+              as Map<String, dynamic>;
       await adoptAuthResponse(json);
       return true;
     } on ApiException catch (e) {

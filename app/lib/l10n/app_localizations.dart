@@ -447,6 +447,54 @@ abstract class AppLocalizations {
   /// **'No people found'**
   String get noPeopleFound;
 
+  /// No description provided for @noPeopleFoundHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Try a different name or username, at least 2 characters.'**
+  String get noPeopleFoundHint;
+
+  /// No description provided for @startNewChatTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Find someone to chat with'**
+  String get startNewChatTitle;
+
+  /// No description provided for @contacts.
+  ///
+  /// In en, this message translates to:
+  /// **'Contacts'**
+  String get contacts;
+
+  /// No description provided for @settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settings;
+
+  /// No description provided for @unreadMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread messages'**
+  String get unreadMessages;
+
+  /// No description provided for @scrollToNewest.
+  ///
+  /// In en, this message translates to:
+  /// **'Scroll to newest'**
+  String get scrollToNewest;
+
+  /// No description provided for @dismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get dismiss;
+
+  /// No description provided for @typingNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is typing…'**
+  String typingNamed(String name);
+
   /// No description provided for @youPrefix.
   ///
   /// In en, this message translates to:
@@ -638,6 +686,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Dark'**
   String get themeDark;
+
+  /// No description provided for @languageSystemHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to the whole app, immediately.'**
+  String get languageSystemHint;
+
+  /// No description provided for @profileUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile unavailable'**
+  String get profileUnavailable;
+
+  /// No description provided for @privacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy'**
+  String get privacy;
+
+  /// No description provided for @keepMeSignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep me signed in'**
+  String get keepMeSignedIn;
+
+  /// No description provided for @keepMeSignedInHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Stores your session on this device so you skip the login screen next time.'**
+  String get keepMeSignedInHint;
+
+  /// No description provided for @account.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get account;
+
+  /// No description provided for @usernameIsPermanent.
+  ///
+  /// In en, this message translates to:
+  /// **'Your username cannot be changed.'**
+  String get usernameIsPermanent;
+
+  /// No description provided for @about.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get about;
+
+  /// No description provided for @appVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'App version'**
+  String get appVersion;
 
   /// No description provided for @language.
   ///

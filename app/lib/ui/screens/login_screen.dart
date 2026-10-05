@@ -6,7 +6,7 @@ import '../../state/session_controller.dart';
 import '../../state/settings_controller.dart';
 import '../l10n.dart';
 import '../theme.dart';
-import '../widgets/state_views.dart';
+import '../components/state_views.dart';
 import 'auth_layout.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';

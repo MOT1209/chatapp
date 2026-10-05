@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/chat_api.dart';
 import '../l10n.dart';
-import '../widgets/state_views.dart';
+import '../components/state_views.dart';
 import 'auth_layout.dart';
 import 'register_screen.dart';
 
@@ -85,7 +85,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         children: [
           if (_error != null) ...[ErrorBanner(message: _error!), const SizedBox(height: 16)],
           if (!_codeStep) ...[
-            if (_requested) ...[ErrorBanner(message: l.resetCodeSent, success: true), const SizedBox(height: 16)],
+            if (_requested) ...[
+              ErrorBanner(message: l.resetCodeSent, kind: ErrorBannerKind.success),
+              const SizedBox(height: 16),
+            ],
             Form(
               key: _requestForm,
               child: TextFormField(

@@ -186,6 +186,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noPeopleFound => 'No people found';
 
   @override
+  String get noPeopleFoundHint => 'Try a different name or username, at least 2 characters.';
+
+  @override
+  String get startNewChatTitle => 'Find someone to chat with';
+
+  @override
+  String get contacts => 'Contacts';
+
+  @override
+  String get settings => 'Settings';
+
+  @override
+  String get unreadMessages => 'Unread messages';
+
+  @override
+  String get scrollToNewest => 'Scroll to newest';
+
+  @override
+  String get dismiss => 'Dismiss';
+
+  @override
+  String typingNamed(String name) {
+    return '$name is typing…';
+  }
+
+  @override
   String youPrefix(String text) {
     return 'You: $text';
   }
@@ -290,6 +316,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get themeDark => 'Dark';
+
+  @override
+  String get languageSystemHint => 'Applies to the whole app, immediately.';
+
+  @override
+  String get profileUnavailable => 'Profile unavailable';
+
+  @override
+  String get privacy => 'Privacy';
+
+  @override
+  String get keepMeSignedIn => 'Keep me signed in';
+
+  @override
+  String get keepMeSignedInHint => 'Stores your session on this device so you skip the login screen next time.';
+
+  @override
+  String get account => 'Account';
+
+  @override
+  String get usernameIsPermanent => 'Your username cannot be changed.';
+
+  @override
+  String get about => 'About';
+
+  @override
+  String get appVersion => 'App version';
 
   @override
   String get language => 'Language';

@@ -13,11 +13,17 @@ import '../../models/message.dart';
 import '../../state/chat_controller.dart';
 import '../../state/conversations_controller.dart';
 import '../../state/session_controller.dart';
+import '../components/app_avatar.dart';
+import '../components/connection_banner.dart';
+import '../components/message_bubble.dart';
+import '../components/message_dividers.dart';
+import '../components/scroll_to_newest_button.dart';
+import '../components/state_views.dart';
+import '../components/typing_indicator.dart';
+import '../design/app_colors.dart';
+import '../design/tokens.dart';
 import '../format.dart';
 import '../l10n.dart';
-import '../widgets/connection_banner.dart';
-import '../widgets/state_views.dart';
-import '../widgets/user_avatar.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.conversation, this.onBack});
@@ -34,6 +40,11 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   late final ChatController _chat;
   late final ConversationsController _conversations;
+  final _scroll = ScrollController();
+
+  /// Messages that arrived while the user was reading older history.
+  int _missedWhileAway = 0;
+  bool _atNewest = true;
 
   @override
   void initState() {
@@ -50,14 +61,33 @@ class _ChatScreenState extends State<ChatScreen> {
       onRead: _conversations.markReadLocally,
       sendFrame: realtime.send,
     );
+    _scroll.addListener(_onScroll);
     unawaited(_chat.load());
   }
 
   @override
   void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
     if (_conversations.activeId == widget.conversation.id) _conversations.activeId = null;
     _chat.dispose();
     super.dispose();
+  }
+
+  /// The list is reversed, so offset 0 is the newest message.
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final atNewest = _scroll.offset <= 24;
+    if (atNewest == _atNewest) return;
+    setState(() {
+      _atNewest = atNewest;
+      if (atNewest) _missedWhileAway = 0;
+    });
+  }
+
+  void _scrollToNewest() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(0, duration: AppDurations.medium, curve: Curves.easeOut);
   }
 
   Future<void> _confirmDelete(Message message) async {
@@ -89,36 +119,41 @@ class _ChatScreenState extends State<ChatScreen> {
       listenable: _chat,
       builder: (context, _) {
         final participant = _chat.participant;
-        final theme = Theme.of(context);
         final typing = _chat.participantTyping;
+        final palette = AppPalette.of(context);
+        final theme = Theme.of(context);
         return Scaffold(
           appBar: AppBar(
             automaticallyImplyLeading: false,
             leading: widget.onBack == null
                 ? null
                 : IconButton(tooltip: l.back, icon: const BackButtonIcon(), onPressed: widget.onBack),
-            titleSpacing: widget.onBack == null ? 16 : 0,
+            titleSpacing: widget.onBack == null ? AppSpacing.md : 0,
             title: Row(
               children: [
-                UserAvatar(user: participant, radius: 18, showPresence: true),
-                const SizedBox(width: 12),
+                UserAvatar(user: participant, size: AvatarSize.medium, showPresence: true),
+                const SizedBox(width: AppSpacing.smd),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(participant.displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Semantics(
-                        liveRegion: true,
-                        child: Text(
-                          typing ? l.typing : presenceLabel(l, participant),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: typing || participant.isOnline
-                                ? Colors.green.shade600
-                                : theme.colorScheme.onSurfaceVariant,
-                            fontStyle: typing ? FontStyle.italic : null,
+                      if (typing)
+                        // Named, so it reads as "X is typing" instead of a
+                        // bare "typing…" with no indication of who.
+                        TypingIndicator(displayName: participant.displayName)
+                      else
+                        Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            presenceLabel(l, participant),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: participant.isOnline ? palette.online : theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -161,213 +196,64 @@ class _ChatScreenState extends State<ChatScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bubbleMax = min(560.0, constraints.maxWidth * 0.78);
-        return NotificationListener<ScrollNotification>(
-          onNotification: (n) {
-            // The list is reversed, so "after" is older history at the top.
-            if (n.metrics.extentAfter < 300 && _chat.hasMore) unawaited(_chat.loadMore());
-            return false;
-          },
-          child: ListView.builder(
-            reverse: true,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            itemCount: messages.length + (_chat.hasMore ? 1 : 0),
-            itemBuilder: (context, i) {
-              if (i == messages.length) {
-                return const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                );
-              }
-              final index = messages.length - 1 - i;
-              final message = messages[index];
-              final isMine = message.sender.id == _chat.me.id;
-              final showDay = index == 0 || !isSameDay(messages[index - 1].createdAt, message.createdAt);
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (showDay) _DayDivider(message.createdAt),
-                  MessageBubble(
-                    message: message,
-                    isMine: isMine,
-                    maxWidth: bubbleMax,
-                    onRetry: () => _chat.retry(message),
-                    onDelete: isMine && !message.isLocal && !message.isDeleted ? () => _confirmDelete(message) : null,
-                  ),
-                ],
-              );
-            },
-          ),
+        return Stack(
+          children: [
+            NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                // The list is reversed, so "after" is older history at the top.
+                if (n.metrics.extentAfter < 300 && _chat.hasMore) unawaited(_chat.loadMore());
+                return false;
+              },
+              child: ListView.builder(
+                controller: _scroll,
+                reverse: true,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.smd, vertical: AppSpacing.sm),
+                itemCount: messages.length + (_chat.hasMore ? 1 : 0),
+                itemBuilder: (context, i) {
+                  if (i == messages.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(AppSpacing.md),
+                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    );
+                  }
+                  final index = messages.length - 1 - i;
+                  final message = messages[index];
+                  final isMine = message.sender.id == _chat.me.id;
+                  final showDay = index == 0 || !isSameDay(messages[index - 1].createdAt, message.createdAt);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (showDay) DayDivider(date: message.createdAt),
+                      MessageBubble(
+                        message: message,
+                        isMine: isMine,
+                        maxWidth: bubbleMax,
+                        onRetry: () => _chat.retry(message),
+                        onDelete: isMine && !message.isLocal && !message.isDeleted
+                            ? () => _confirmDelete(message)
+                            : null,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            PositionedDirectional(
+              bottom: AppSpacing.md,
+              end: AppSpacing.md,
+              child: AnimatedScale(
+                scale: _atNewest ? 0 : 1,
+                duration: context.motion(AppDurations.fast),
+                child: IgnorePointer(
+                  ignoring: _atNewest,
+                  child: ScrollToNewestButton(unreadCount: _missedWhileAway, onPressed: _scrollToNewest),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
-  }
-}
-
-class _DayDivider extends StatelessWidget {
-  const _DayDivider(this.date);
-  final DateTime date;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    child: Center(
-      child: Text(
-        formatDayDivider(context.l10n, date),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-      ),
-    ),
-  );
-}
-
-class MessageBubble extends StatelessWidget {
-  const MessageBubble({
-    super.key,
-    required this.message,
-    required this.isMine,
-    required this.maxWidth,
-    required this.onRetry,
-    this.onDelete,
-  });
-
-  final Message message;
-  final bool isMine;
-  final double maxWidth;
-  final VoidCallback onRetry;
-
-  /// Long-press on touch, right-click on desktop and web.
-  final VoidCallback? onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final l = context.l10n;
-    final scheme = Theme.of(context).colorScheme;
-    final failed = message.status == MessageStatus.failed;
-    final deleted = message.isDeleted;
-    final background = deleted
-        ? scheme.surfaceContainerLow
-        : isMine
-        ? scheme.primary
-        : scheme.surfaceContainerHighest;
-    final foreground = deleted
-        ? scheme.onSurfaceVariant
-        : isMine
-        ? scheme.onPrimary
-        : scheme.onSurface;
-    final time = formatTime(message.createdAt);
-
-    final bubble = Container(
-      constraints: BoxConstraints(maxWidth: maxWidth),
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-      decoration: BoxDecoration(
-        color: failed ? scheme.errorContainer : background,
-        border: deleted ? Border.all(color: scheme.outlineVariant) : null,
-        borderRadius: BorderRadiusDirectional.only(
-          topStart: const Radius.circular(16),
-          topEnd: const Radius.circular(16),
-          bottomStart: Radius.circular(isMine ? 16 : 4),
-          bottomEnd: Radius.circular(isMine ? 4 : 16),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            widthFactor: 1,
-            child: deleted
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.block, size: 14, color: foreground),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          l.messageDeleted,
-                          style: TextStyle(color: foreground, fontSize: 14, fontStyle: FontStyle.italic),
-                        ),
-                      ),
-                    ],
-                  )
-                : Text(
-                    message.body,
-                    style: TextStyle(color: failed ? scheme.onErrorContainer : foreground, fontSize: 15),
-                  ),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                time,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: (failed ? scheme.onErrorContainer : foreground).withValues(alpha: 0.75),
-                ),
-              ),
-              if (isMine && !deleted) ...[
-                const SizedBox(width: 4),
-                _StatusIcon(status: message.status, foreground: foreground, background: background),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-
-    final status = switch (message.status) {
-      MessageStatus.pending => l.statusSending,
-      MessageStatus.sent => l.statusSent,
-      MessageStatus.read => l.statusRead,
-      MessageStatus.failed => l.statusFailed,
-    };
-    return Semantics(
-      label: '${isMine ? l.you : message.sender.displayName}, $time${isMine && !deleted ? ', $status' : ''}',
-      onLongPressHint: onDelete == null ? null : l.deleteMessage,
-      child: Align(
-        alignment: isMine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
-        child: Column(
-          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            GestureDetector(onLongPress: onDelete, onSecondaryTap: onDelete, child: bubble),
-            if (failed)
-              TextButton.icon(
-                onPressed: onRetry,
-                icon: Icon(Icons.refresh, size: 16, color: scheme.error),
-                label: Text(l.notSentRetry, style: TextStyle(color: scheme.error)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Contract §5.4: pending = one grey check, sent = two grey, read = two blue, failed = red.
-class _StatusIcon extends StatelessWidget {
-  const _StatusIcon({required this.status, required this.foreground, required this.background});
-  final MessageStatus status;
-  final Color foreground;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = foreground.withValues(alpha: 0.75);
-    // The bubble is dark in light mode and light in dark mode; keep "read" blue legible on both.
-    final readBlue = ThemeData.estimateBrightnessForColor(background) == Brightness.dark
-        ? Colors.lightBlueAccent.shade100
-        : Colors.blue.shade800;
-    final icon = switch (status) {
-      MessageStatus.pending => Icons.done,
-      MessageStatus.sent || MessageStatus.read => Icons.done_all,
-      MessageStatus.failed => Icons.error_outline,
-    };
-    final color = switch (status) {
-      MessageStatus.pending || MessageStatus.sent => muted,
-      MessageStatus.read => readBlue,
-      MessageStatus.failed => Theme.of(context).colorScheme.error,
-    };
-    return ExcludeSemantics(child: Icon(icon, size: 14, color: color));
   }
 }
 
@@ -420,39 +306,43 @@ class _ComposerState extends State<_Composer> {
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: Theme.of(context).colorScheme.surface,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 8, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextField(
-                key: const Key('chat.input'),
-                controller: _text,
-                focusNode: _focus,
-                onChanged: _onChanged,
-                minLines: 1,
-                maxLines: 5,
-                keyboardType: TextInputType.multiline,
-                textCapitalization: TextCapitalization.sentences,
-                inputFormatters: [LengthLimitingTextInputFormatter(4000)],
-                decoration: InputDecoration(
-                  hintText: l.writeMessage,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: scheme.surfaceContainer,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(AppSpacing.smd, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const Key('chat.input'),
+                  controller: _text,
+                  focusNode: _focus,
+                  onChanged: _onChanged,
+                  minLines: 1,
+                  maxLines: 5,
+                  keyboardType: TextInputType.multiline,
+                  textCapitalization: TextCapitalization.sentences,
+                  inputFormatters: [LengthLimitingTextInputFormatter(4000)],
+                  decoration: InputDecoration(
+                    hintText: l.writeMessage,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.smd),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              key: const Key('chat.send'),
-              tooltip: l.send,
-              onPressed: _canSend ? _send : null,
-              icon: const Icon(Icons.send_rounded),
-            ),
-          ],
+              const SizedBox(width: AppSpacing.sm),
+              IconButton.filled(
+                key: const Key('chat.send'),
+                tooltip: l.send,
+                onPressed: _canSend ? _send : null,
+                icon: const Icon(Icons.send_rounded),
+              ),
+            ],
+          ),
         ),
       ),
     );

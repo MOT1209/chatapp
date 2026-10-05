@@ -4,15 +4,18 @@ import 'package:provider/provider.dart';
 
 import '../../models/conversation.dart';
 import '../../state/conversations_controller.dart';
+import '../components/state_views.dart';
 import '../l10n.dart';
 import '../responsive.dart';
-import '../widgets/state_views.dart';
 import 'chat_screen.dart';
+import 'contacts_screen.dart';
 import 'conversation_list.dart';
 import 'profile_screen.dart';
+import 'settings_screen.dart';
 
 /// Compact: list → full-screen chat, with bottom navigation and a "New chat" button.
-/// Medium/expanded: navigation rail | conversation sidebar | chat area.
+/// Medium/expanded: navigation rail | content area, where Chats keeps its own
+/// conversation sidebar and the other destinations take the full width.
 /// Keyboard: Ctrl/⌘+K focuses search, Esc closes the open chat.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,6 +36,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _select(Conversation? conversation) => setState(() => _selectedId = conversation?.id);
+
+  /// Opening a chat from Contacts (or a search result) always lands on Chats,
+  /// because that is the destination that has the chat pane to show it in.
+  void _openChat(Conversation conversation) => setState(() {
+    _tab = 0;
+    _selectedId = conversation.id;
+  });
+
+  void _selectTab(int index) => setState(() {
+    _tab = index;
+    // Leaving Chats should not leave a chat open behind a hidden sidebar.
+    if (index != 0) _selectedId = null;
+  });
 
   /// "New chat" starts from people search; the list already handles open-or-create.
   void _newChat() {
@@ -64,7 +80,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final size = screenSizeOf(context);
     final destinations = [
       (icon: Icons.chat_bubble_outline, selected: Icons.chat_bubble, label: l.chats),
+      (icon: Icons.person_search_outlined, selected: Icons.person_search, label: l.contacts),
       (icon: Icons.person_outline, selected: Icons.person, label: l.profile),
+      (icon: Icons.settings_outlined, selected: Icons.settings, label: l.settings),
     ];
 
     final list = ConversationList(
@@ -75,6 +93,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     Widget chat(VoidCallback? onBack) =>
         ChatScreen(key: ValueKey(selected!.id), conversation: selected, onBack: onBack);
+
+    /// Chats on wide layouts: the conversation sidebar beside the chat pane.
+    Widget chatsWithSidebar() => Row(
+      children: [
+        SizedBox(width: size == ScreenSize.expanded ? 360.0 : 300.0, child: list),
+        const VerticalDivider(width: 1),
+        Expanded(
+          child: selected == null
+              ? EmptyView(icon: Icons.forum_outlined, title: l.selectConversation, message: l.selectConversationHint)
+              : chat(null),
+        ),
+      ],
+    );
 
     if (size == ScreenSize.compact) {
       if (_tab == 0 && selected != null) {
@@ -90,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       return _withShortcuts(
         Scaffold(
-          body: SafeArea(bottom: false, child: _tab == 0 ? list : const ProfileScreen()),
+          body: SafeArea(bottom: false, child: _compactBody(list)),
           floatingActionButton: _tab == 0
               ? FloatingActionButton(
                   key: const Key('home.newChat'),
@@ -100,8 +131,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 )
               : null,
           bottomNavigationBar: NavigationBar(
+            key: const Key('home.navigation'),
             selectedIndex: _tab,
-            onDestinationSelected: (i) => setState(() => _tab = i),
+            onDestinationSelected: _selectTab,
             destinations: [
               for (final d in destinations)
                 NavigationDestination(icon: Icon(d.icon), selectedIcon: Icon(d.selected), label: d.label),
@@ -111,7 +143,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final sidebarWidth = size == ScreenSize.expanded ? 360.0 : 300.0;
     return _withShortcuts(
       Scaffold(
         body: SafeArea(
@@ -119,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               NavigationRail(
                 selectedIndex: _tab,
-                onDestinationSelected: (i) => setState(() => _tab = i),
+                onDestinationSelected: _selectTab,
                 labelType: NavigationRailLabelType.all,
                 destinations: [
                   for (final d in destinations)
@@ -127,24 +158,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const VerticalDivider(width: 1),
-              if (_tab == 0) ...[
-                SizedBox(width: sidebarWidth, child: list),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  child: selected == null
-                      ? EmptyView(
-                          icon: Icons.forum_outlined,
-                          title: l.selectConversation,
-                          message: l.selectConversationHint,
-                        )
-                      : chat(null),
-                ),
-              ] else
-                const Expanded(child: ProfileScreen()),
+              Expanded(
+                child: _tab == 0
+                    ? chatsWithSidebar()
+                    : switch (_tab) {
+                        1 => ContactsScreen(onOpenChat: _openChat),
+                        2 => const ProfileScreen(),
+                        _ => const SettingsScreen(),
+                      },
+              ),
             ],
           ),
         ),
       ),
     );
   }
+
+  Widget _compactBody(Widget list) => switch (_tab) {
+    0 => list,
+    1 => ContactsScreen(onOpenChat: _openChat),
+    2 => const ProfileScreen(),
+    _ => const SettingsScreen(),
+  };
 }

@@ -296,10 +296,16 @@ void main() {
     testWidgets('typing from the participant shows in the header and clears itself', (tester) async {
       await openSara(tester);
       backend.push('typing', {'conversationId': conversationId, 'userId': 'u_sara', 'isTyping': true});
-      await tester.pumpAndSettle();
-      expect(find.text('typing…'), findsOneWidget);
+      // A bounded pump, not pumpAndSettle: the typing flag self-clears after 3s
+      // (contract §4.6), so settling the whole tree would expire it before the
+      // first assertion.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      // Named, not a bare "typing…", so it is clear who is typing.
+      expect(find.text('Sara is typing…'), findsOneWidget);
       await tester.pump(const Duration(seconds: 4));
-      expect(find.text('typing…'), findsNothing);
+      expect(find.text('Sara is typing…'), findsNothing);
+      expect(find.text('Online'), findsOneWidget);
       await unmount(tester);
     });
 
