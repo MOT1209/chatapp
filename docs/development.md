@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js ≥ 20 (managed via `.nvmrc` if you use nvm)
+- Node.js ≥ 22.12 (the backend test runner, Vitest 5, requires it; CI uses 22)
 - Flutter ≥ 3.47 (stable) for the client, plus the platform toolchain you target (Android SDK, Xcode, Visual Studio, or GTK dev libraries on Linux)
 - npm ≥ 10
 - PostgreSQL ≥ 14 running locally (or a reachable `DATABASE_URL`)

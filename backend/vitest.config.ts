@@ -7,8 +7,11 @@ export default defineConfig({
     globals: false,
     // Tests share one Postgres database and reset it between each test, so they
     // must not run concurrently against it.
+    // `poolOptions` no longer exists in Vitest 4+, so the old `singleFork` setting would
+    // be ignored and files would run in parallel against the one database.
+    // `fileParallelism: false` is the supported way to run test files one at a time.
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
+    fileParallelism: false,
     // These are integration tests: every case talks to a real Postgres over a real
     // HTTP stack, and a handful of them deliberately fire 8-25 concurrent requests
     // at one database. The default 5s budget was regularly exceeded on a loaded

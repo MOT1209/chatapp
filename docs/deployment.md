@@ -58,7 +58,7 @@ services:
     branch: main
     envVars:
       # Pin the Node major that CI tests. Without this Render picks the newest Node that
-      # satisfies package.json "engines" (>=20), which is untested here.
+      # satisfies package.json "engines" (>=22.12), which is untested here.
       - key: NODE_VERSION
         value: '22'
       - key: NODE_ENV
