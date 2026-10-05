@@ -14,3 +14,50 @@ updates:
           - '*'
     commit-message:
       prefix: ci
+
+  # The backend's npm dependencies. Without this nothing flags a new advisory: the
+  # dependency tree used to carry a high-severity nodemailer and a critical Vitest finding
+  # that only surfaced when someone happened to run `npm audit`.
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Dev tooling moves together and never ships; one reviewable PR per week.
+      backend-dev-tooling:
+        dependency-type: development
+      backend-runtime:
+        dependency-type: production
+        update-types: [minor, patch]
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+
+  # The root workspace only holds the helper scripts (npm-run-all).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      root-tooling:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: 'chore(deps)'
+
+  # The Flutter client's pub packages. A major bump is never grouped in: it gets its own PR
+  # so it can be run through the full test and build matrix before it is merged.
+  - package-ecosystem: pub
+    directory: /app
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      app-minor-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: 'chore(deps)'
