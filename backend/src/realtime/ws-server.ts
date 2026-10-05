@@ -1,9 +1,10 @@
 import type { Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket, type RawData } from 'ws';
+import { env } from '../config/env.js';
 import { verifyAccessToken } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../lib/logger.js';
-import { wsHub } from './ws-hub.js';
+import { MAX_BUFFERED_BYTES, wsHub } from './ws-hub.js';
 import { markRead } from '../services/message.service.js';
 import { assertMember, getOtherMemberIds } from '../services/conversation.service.js';
 import { clientFrameSchema, type ValidatedClientFrame } from '../validators/realtime.validators.js';
@@ -25,6 +26,17 @@ const MAX_FRAME_BYTES = 16 * 1024;
 const DEFAULT_FRAME_LIMIT = 20;
 const DEFAULT_FRAME_WINDOW_MS = 10_000;
 
+// Ceiling on *every* frame a socket sends in one window, valid or not. The budget above
+// only covers frames that cost database queries; `ping`, malformed JSON and unknown
+// types are cheap individually but each one still costs a parse, a schema check and a
+// reply. Legitimate traffic is a ping every 25s plus a typing frame every 2s, so this
+// is two orders of magnitude of headroom. Over it, the socket is closed (4429).
+const DEFAULT_FLOOD_LIMIT = 200;
+
+// Close code for "too many connections" and "too many frames". The client treats any code
+// other than 4401 as a transient failure and reconnects with backoff.
+const CLOSE_RATE_LIMITED = 4429;
+
 // Protocol-level ping/pong (separate from the contract's app-level `ping` frame).
 // A socket that misses one full cycle is dead: terminate it so presence is corrected.
 const DEFAULT_HEARTBEAT_MS = 30_000;
@@ -35,12 +47,18 @@ export type WsServerOptions = {
   frameLimit?: number;
   frameWindowMs?: number;
   heartbeatMs?: number;
+  /** Per-socket cap on all frames per window. Default 200. */
+  floodLimit?: number;
+  /** Per-account cap on simultaneous sockets. Default `WS_MAX_CONNECTIONS_PER_USER`. */
+  maxConnectionsPerUser?: number;
 };
 
 export function createWsServer(httpServer: HttpServer, options: WsServerOptions = {}): WebSocketServer {
   const frameLimit = options.frameLimit ?? DEFAULT_FRAME_LIMIT;
   const frameWindowMs = options.frameWindowMs ?? DEFAULT_FRAME_WINDOW_MS;
   const heartbeatMs = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
+  const floodLimit = options.floodLimit ?? DEFAULT_FLOOD_LIMIT;
+  const maxConnectionsPerUser = options.maxConnectionsPerUser ?? env.WS_MAX_CONNECTIONS_PER_USER;
   const wss = new WebSocketServer({ server: httpServer, path: '/ws', maxPayload: MAX_FRAME_BYTES });
 
   const alive = new WeakSet<WebSocket>();
@@ -68,6 +86,8 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
     let session: Session | null = null;
     let windowStart = Date.now();
     let framesInWindow = 0;
+    let floodWindowStart = Date.now();
+    let allFramesInWindow = 0;
     alive.add(socket);
     socket.on('pong', () => alive.add(socket));
     // §17: log the socket lifecycle — open, authentication outcome, close code
@@ -103,6 +123,20 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
     });
 
     socket.on('message', (raw: RawData) => {
+      // Counted before parsing, so a flood of garbage costs one integer compare each.
+      const now = Date.now();
+      if (now - floodWindowStart >= frameWindowMs) {
+        floodWindowStart = now;
+        allFramesInWindow = 0;
+      }
+      allFramesInWindow += 1;
+      if (allFramesInWindow > floodLimit) {
+        if (allFramesInWindow === floodLimit + 1) {
+          logger.warn('ws frame flood, closing', { userId: session?.userId });
+          socket.close(CLOSE_RATE_LIMITED, 'rate limited');
+        }
+        return;
+      }
       handleMessage(raw).catch((err: unknown) => {
         logger.error('ws message handler failed', { err: err instanceof Error ? err.message : String(err) });
       });
@@ -161,6 +195,17 @@ export function createWsServer(httpServer: HttpServer, options: WsServerOptions 
             },
           });
           socket.close(4401, 'invalid token');
+          return;
+        }
+        if (wsHub.count(result.userId) >= maxConnectionsPerUser) {
+          // Refuse the newcomer; never evict an existing socket (see WS_MAX_CONNECTIONS_PER_USER).
+          // Checked and registered with no `await` in between, so concurrent auths cannot overshoot.
+          logger.warn('ws connection limit reached', { userId: result.userId });
+          send(socket, {
+            type: 'error',
+            payload: { code: 'RATE_LIMITED', message: 'Too many open connections for this account.' },
+          });
+          socket.close(CLOSE_RATE_LIMITED, 'too many connections');
           return;
         }
         session = { userId: result.userId, expiresAtMs: result.expiresAtMs };
@@ -340,6 +385,10 @@ function parseFrame(raw: RawData): ValidatedClientFrame | null {
 
 function send(socket: WebSocket, frame: ServerFrame): void {
   if (socket.readyState !== socket.OPEN) {
+    return;
+  }
+  if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+    socket.terminate();
     return;
   }
   try {

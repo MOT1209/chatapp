@@ -126,6 +126,17 @@ const EnvSchema = z
     SESSION_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
     /** How long *used* password-reset tokens are kept. Expired ones always go. */
     RESET_TOKEN_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
+
+    // --- Realtime (WebSocket) ---
+    /**
+     * Simultaneous authenticated sockets one account may hold (tabs, devices, and
+     * half-dead connections the heartbeat has not reaped yet). Without a ceiling a
+     * single valid account can open sockets until the process runs out of memory
+     * or file descriptors. A new socket over the limit is refused with close code
+     * 4429; the existing ones are never evicted, because evicting makes two
+     * clients over the limit kick each other off in a reconnect loop.
+     */
+    WS_MAX_CONNECTIONS_PER_USER: z.coerce.number().int().min(1).max(100).default(10),
   })
   .superRefine((data, ctx) => {
     const issue = (field: string, message: string): void => {

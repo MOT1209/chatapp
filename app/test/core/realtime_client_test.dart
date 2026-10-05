@@ -66,6 +66,21 @@ void main() {
     client.dispose();
   });
 
+  test('close code 4429 (server limit) reconnects with backoff and does not refresh tokens', () async {
+    // 4429 means "too many connections / too many frames", not "your token is bad":
+    // refreshing would only burn a session round-trip, and giving up would strand a
+    // user whose other tab has since closed.
+    final client = build()..connect();
+    await settle();
+    backend.sockets.single.serverClose(4429);
+    await settle();
+
+    expect(refreshCalls, 0);
+    expect(backend.sockets, hasLength(2));
+    expect(client.status, RealtimeStatus.connected);
+    client.dispose();
+  });
+
   test('stops reconnecting when the refresh is rejected', () async {
     final client = build(refresh: () async => false)..connect();
     await settle();

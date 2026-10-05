@@ -3,6 +3,14 @@ import type { ServerFrame } from '../types/realtime.js';
 import { logger } from '../lib/logger.js';
 
 /**
+ * Largest outbound backlog a socket may carry before it is dropped. `ws` queues every
+ * `send()` in memory, so a client that authenticates and then never reads would make
+ * the server buffer every frame addressed to it, for as long as the socket stays open.
+ * 1 MiB is thousands of ordinary frames; a healthy client never gets near it.
+ */
+export const MAX_BUFFERED_BYTES = 1024 * 1024;
+
+/**
  * In-process registry of live sockets per user.
  *
  * Alpha runs a single backend instance, so an in-memory map is sufficient. Scaling
@@ -38,6 +46,11 @@ class WsHub {
     return false;
   }
 
+  /** Number of live sockets the user currently has registered. */
+  count(userId: string): number {
+    return this.socketsByUser.get(userId)?.size ?? 0;
+  }
+
   isOnline(userId: string): boolean {
     return this.socketsByUser.has(userId);
   }
@@ -58,6 +71,13 @@ class WsHub {
     // Iterate a snapshot: cleanup triggered by a failing socket mutates the live set.
     for (const socket of [...sockets]) {
       if (socket.readyState !== socket.OPEN) {
+        continue;
+      }
+      if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+        // A slow or stalled reader. Dropping it is correct: the database is the source
+        // of truth, and the client resyncs from REST when it reconnects.
+        logger.warn('ws dropping slow consumer', { userId, bufferedAmount: socket.bufferedAmount });
+        this.dropBroken(socket);
         continue;
       }
       try {

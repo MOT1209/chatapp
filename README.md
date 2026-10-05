@@ -129,6 +129,7 @@ Highlights only — see `.env.example` for the full list.
 | `PASSWORD_RESET_*` | Reset link lifetime and the per-account send cooldown |
 | `COOKIE_*` | HttpOnly refresh-cookie policy |
 | `CLEANUP_BATCH_SIZE`, `SESSION_RETENTION_DAYS`, `RESET_TOKEN_RETENTION_DAYS` | Budgets for `npm run cleanup` |
+| `WS_MAX_CONNECTIONS_PER_USER` | Simultaneous WebSocket connections per account (default 10, range 1-100). Extra connections are refused with close code `4429` |
 
 `.env` is ignored by git. Never commit real secrets.
 
