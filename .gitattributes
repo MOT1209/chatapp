@@ -1,0 +1,5 @@
+# Windows batch files must keep CRLF line endings: cmd.exe can mis-parse labels
+# (goto :fail) in LF-only files, and a git checkout on Linux/macOS would otherwise
+# hand Windows users a script that fails in confusing ways.
+*.bat text eol=crlf
+*.cmd text eol=crlf

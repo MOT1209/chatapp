@@ -31,6 +31,22 @@ curl http://localhost:4000/health
 # {"status":"ok","service":"chatapp-api"}
 ```
 
+### Windows quick start (`start-server.bat`)
+
+Copy nothing: run `backend\start-server.bat` from the `backend` folder. It installs
+dependencies, writes `backend\.env` **once**, applies the migrations and starts the dev
+server. The first run asks for your PostgreSQL password (and, optionally, this PC's LAN
+address so a phone on the same Wi-Fi can open the web app).
+
+- The generated `.env` uses a dedicated `chatapp` database, never the server's default
+  `postgres` one, so `prisma migrate deploy` starts from an empty schema. `migrate deploy`
+  creates the database if it is missing.
+- The JWT secrets are random and unique to your machine (`src/scripts/setup-env.ts`); the
+  password is URL-encoded, so characters such as `@`, `:`, `/`, `%` and `#` are safe.
+- An existing `.env` is never overwritten. To start over, delete it and run the script again.
+- Error `P3005` ("schema is not empty") means an older run used the shared `postgres`
+  database: delete `.env` and rerun.
+
 ### Trying it end to end
 
 ```bash

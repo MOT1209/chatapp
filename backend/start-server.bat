@@ -15,28 +15,34 @@ if not exist package.json (
   exit /b 1
 )
 
-set /p PGPW=Enter the PostgreSQL password you chose during install: 
-
-> .env (
-  echo NODE_ENV=development
-  echo PORT=4000
-  echo CORS_ORIGIN=http://192.168.2.113:5173,http://localhost:5173
-  echo DATABASE_URL=postgresql://postgres:%PGPW%@localhost:5432/postgres?schema=public
-  echo JWT_ACCESS_SECRET=dev-access-secret-change-me-0123456789abcd
-  echo JWT_REFRESH_SECRET=dev-refresh-secret-change-me-9876543210wxyz
-  echo JWT_ACCESS_TTL=15m
-  echo JWT_REFRESH_TTL=30d
-  echo BCRYPT_ROUNDS=10
-)
-
-echo.
 echo [1/4] Installing dependencies (first run can take a few minutes)...
 call npm install || goto :fail
 
+REM An existing .env is kept as it is: it may hold settings you changed. To start over,
+REM delete backend\.env and run this file again.
+if exist .env (
+  echo Found an existing .env - keeping it.
+  goto :haveenv
+)
+
+echo.
+set "PGPW="
+set "LAN_IP="
+set /p PGPW=Enter the PostgreSQL password you chose during install: 
+echo.
+echo Optional: to open the web app from a phone on the same Wi-Fi, enter this PC's
+echo address (for example 192.168.1.20). Press Enter to skip.
+set /p LAN_IP=PC address: 
+call npx tsx src/scripts/setup-env.ts || goto :fail
+set "PGPW="
+set "LAN_IP="
+
+:haveenv
+echo.
 echo [2/4] Generating database client...
 call npx prisma generate || goto :fail
 
-echo [3/4] Creating database tables...
+echo [3/4] Creating database tables (database "chatapp" is created if it does not exist)...
 call npx prisma migrate deploy || goto :fail
 
 echo [4/4] Starting server on port 4000. Leave this window open.
@@ -47,5 +53,11 @@ goto :end
 :fail
 echo.
 echo Something failed above. Copy the red text and send it to Claude.
+echo.
+echo   Error P1000/P1001: PostgreSQL is not running, or the password is wrong.
+echo                      Delete backend\.env and run this file again to re-enter it.
+echo   Error P3005:       the database already has tables from an earlier setup.
+echo                      Delete backend\.env and run this file again; it will use a
+echo                      fresh database named "chatapp".
 :end
 pause
