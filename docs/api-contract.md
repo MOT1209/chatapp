@@ -51,7 +51,7 @@ The frontend shows `fields` next to the matching form input. Because `message` a
 
 | Code | HTTP | Meaning |
 | --- | --- | --- |
-| `VALIDATION_ERROR` | 400 | Request body failed validation. `fields` is present |
+| `VALIDATION_ERROR` | 400 | Request body failed validation. `fields` is present. Also used, with the HTTP status that fits, for requests the server cannot even parse: **413** body over 1 MB, **415** unsupported `Content-Encoding`, **400** malformed JSON or an undecodable percent-escape in the path. Text that PostgreSQL cannot store — a NUL character or a lone UTF-16 surrogate (an emoji cut in half) — anywhere in the JSON body (keys included) or `%00` in the URL is a **400** with `fields._`; whole emoji and every other Unicode text are accepted |
 | `INVALID_CREDENTIALS` | 401 | Wrong username/email or password |
 | `UNAUTHENTICATED` | 401 | Missing or malformed token |
 | `TOKEN_EXPIRED` | 401 | Access token expired. The frontend will attempt a silent refresh and retry once |

@@ -6,6 +6,7 @@ import apiRouter from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { requestContext } from './middleware/request-context.js';
+import { rejectUnstorableText } from './middleware/well-formed-text.js';
 
 export function createApp(): Express {
   const app = express();
@@ -34,6 +35,7 @@ export function createApp(): Express {
     }),
   );
   app.use(express.json({ limit: '1mb' }));
+  app.use(rejectUnstorableText);
 
   app.use(healthRouter);
   app.use('/api', apiRouter);
