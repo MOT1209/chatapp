@@ -1,7 +1,6 @@
 import 'package:http/http.dart' as http;
 
-import 'http_client_factory_native.dart'
-    if (dart.library.js_interop) 'http_client_factory_web.dart' as platform;
+import 'http_client_factory_native.dart' if (dart.library.js_interop) 'http_client_factory_web.dart' as platform;
 
 /// The HTTP client used by `ApiClient` on the current platform.
 ///

@@ -178,11 +178,7 @@ void main() {
 
     test('drops a refresh token an older build left in localStorage', () async {
       final store = await webStore({'auth.accessToken': 'old', 'auth.refreshToken': 'legacy'});
-      final client = ApiClient(
-        baseUrl: 'http://x',
-        tokens: store,
-        httpClient: MockClient((_) async => _json(200, {})),
-      );
+      final client = ApiClient(baseUrl: 'http://x', tokens: store, httpClient: MockClient((_) async => _json(200, {})));
 
       await client.adoptAuthResponse({'accessToken': 'a1', 'csrfToken': 'c1'});
 
