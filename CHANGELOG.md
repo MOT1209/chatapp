@@ -38,7 +38,7 @@ without it. Details in `docs/QUALITY_REPORT.md`.
 - **Dependencies:** `npm audit` 6 advisories (1 critical, 1 high; dev tooling only) -> 0 via
   Vitest 5 + Vite 7 (Node >= 22.12 for the backend tests). Dependabot now covers npm and pub.
 - **CI hygiene:** `dart format` was failing on 8 files; fixed.
-- **Tests:** backend 239 -> 312, Flutter 150 -> 378 (13 window sizes x en/ar/de x text scale
+- **Tests:** backend 251 -> 312, Flutter 150 -> 378 (13 window sizes x en/ar/de x text scale
   1.0/1.5/2.0 x light/dark, signed-out screens, software keyboard, pagination under heavy
   timestamp ties, the second half of the end-to-end journey).
 
