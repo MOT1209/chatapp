@@ -371,7 +371,13 @@ Request:
 Response body: `{}` — always HTTP 202, **whether or not the email exists**. The frontend shows the same confirmation either way, so the endpoint cannot be used to discover which addresses are registered.
 
 The reset link is emailed, not returned. It points at
-`APP_BASE_URL/reset-password?token=…`.
+`APP_BASE_URL/reset-password?token=…`. The Flutter web build reads that URL on startup
+(`resetTokenFromUri` in `app/lib/core/reset_link.dart`) and opens the new-password step
+with the token pre-filled; the page also accepts the hash-routed form
+`/#/reset-password?token=…`. On native builds there is no link target, so the user
+pastes the token from the email into "I have a reset code". The static host serving the
+web build must rewrite unknown paths to `index.html`, otherwise `/reset-password`
+returns 404 before the app can load.
 
 Two rate limits apply, both invisible to the caller:
 

@@ -112,6 +112,41 @@ void main() {
       await unmount(tester);
     });
 
+    testWidgets('an emailed reset link opens the new-password step with the code pre-filled', (tester) async {
+      await pumpApp(tester, backend, resetToken: FakeBackend.validResetCode);
+
+      // Straight to step two: no login screen, no request-a-code form.
+      expect(find.byKey(const Key('login.identifier')), findsNothing);
+      expect(find.byKey(const Key('forgot.email')), findsNothing);
+      final code = tester.widget<TextFormField>(find.byKey(const Key('reset.code')));
+      expect(code.controller!.text, FakeBackend.validResetCode);
+
+      await tester.enterText(find.byKey(const Key('reset.password')), 'new-password');
+      await tester.enterText(find.byKey(const Key('reset.confirm')), 'new-password');
+      await tester.tap(find.widgetWithText(FilledButton, 'Set new password'));
+      await tester.pumpAndSettle();
+
+      // Done: back at Login (not a blank screen from popping the root route).
+      expect(find.byKey(const Key('login.identifier')), findsOneWidget);
+      expect(find.text('Password updated. You can log in now.'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('an invalid emailed code shows the error and lets the user go back to login', (tester) async {
+      await pumpApp(tester, backend, resetToken: 'expired-token');
+
+      await tester.enterText(find.byKey(const Key('reset.password')), 'new-password');
+      await tester.enterText(find.byKey(const Key('reset.confirm')), 'new-password');
+      await tester.tap(find.widgetWithText(FilledButton, 'Set new password'));
+      await tester.pumpAndSettle();
+      expect(find.text('This reset code is invalid or has expired.'), findsWidgets);
+
+      await tester.tap(find.byKey(const Key('reset.back')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('login.identifier')), findsOneWidget);
+      await unmount(tester);
+    });
+
     testWidgets('forgot password requests a code, then resets with it', (tester) async {
       await pumpApp(tester, backend);
       await tester.tap(find.text('Forgot password?'));

@@ -11,8 +11,15 @@ import 'register_screen.dart';
 /// Contract §3.1: request a reset code, then set a new password with it.
 /// The request step always shows the same confirmation, so it can't reveal
 /// which emails have accounts.
+///
+/// Opened from the emailed link, [initialToken] pre-fills the code and jumps straight to the
+/// "choose a new password" step. In that case the screen is the app's root rather than a
+/// pushed route, so [onFinished] (reset done, or the user backed out) replaces `Navigator.pop`.
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  const ForgotPasswordScreen({super.key, this.initialToken, this.onFinished});
+
+  final String? initialToken;
+  final VoidCallback? onFinished;
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -26,10 +33,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _password = TextEditingController();
   final _confirm = TextEditingController();
   bool _loading = false;
-  bool _codeStep = false;
+  late bool _codeStep = widget.initialToken != null;
   bool _requested = false;
   String? _error;
   Map<String, String> _fieldErrors = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    _code.text = widget.initialToken ?? '';
+  }
 
   @override
   void dispose() {
@@ -69,7 +82,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     final done = context.l10n.passwordResetDone;
-    Navigator.of(context).pop();
+    final finished = widget.onFinished;
+    if (finished != null) {
+      finished();
+    } else {
+      Navigator.of(context).pop();
+    }
     messenger.showSnackBar(SnackBar(content: Text(done)));
   });
 
@@ -159,6 +177,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ],
               ),
             ),
+          if (widget.onFinished != null) ...[
+            const SizedBox(height: 8),
+            TextButton(key: const Key('reset.back'), onPressed: widget.onFinished, child: Text(l.back)),
+          ],
         ],
       ),
     );

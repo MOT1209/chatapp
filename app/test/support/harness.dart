@@ -22,6 +22,7 @@ Future<void> pumpApp(
   String locale = 'en',
   Duration backoff = Duration.zero,
   InMemoryTokenStorage? deviceStore,
+  String? resetToken,
 }) async {
   tester.view
     ..devicePixelRatio = 1
@@ -49,6 +50,7 @@ Future<void> pumpApp(
         backoff: (_) => backoff,
       ),
       settings: settings,
+      initialResetToken: resetToken,
     ),
   );
   await tester.pumpAndSettle();

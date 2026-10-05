@@ -9,17 +9,22 @@ import 'state/conversations_controller.dart';
 import 'state/session_controller.dart';
 import 'state/settings_controller.dart';
 import 'ui/l10n.dart';
+import 'ui/screens/forgot_password_screen.dart';
 import 'ui/screens/home_screen.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/theme.dart';
 
 class ChatApp extends StatefulWidget {
-  const ChatApp({super.key, required this.api, required this.realtime, required this.settings});
+  const ChatApp({super.key, required this.api, required this.realtime, required this.settings, this.initialResetToken});
 
   final ChatApi api;
   final RealtimeClient realtime;
   final SettingsController settings;
+
+  /// Token from an opened password-reset link (see `resetTokenFromUri`). While set, the reset
+  /// screen takes priority over sign-in state, because that is what the link is for.
+  final String? initialResetToken;
 
   @override
   State<ChatApp> createState() => _ChatAppState();
@@ -29,6 +34,7 @@ class _ChatAppState extends State<ChatApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
   late final SessionController _session;
   SessionStatus? _lastStatus;
+  late String? _resetToken = widget.initialResetToken;
 
   @override
   void initState() {
@@ -88,7 +94,13 @@ class _ChatAppState extends State<ChatApp> {
             Intl.defaultLocale = Localizations.localeOf(context).toLanguageTag();
             return child!;
           },
-          home: const _AuthGate(),
+          home: _resetToken == null
+              ? const _AuthGate()
+              : ForgotPasswordScreen(
+                  key: const Key('reset.fromLink'),
+                  initialToken: _resetToken,
+                  onFinished: () => setState(() => _resetToken = null),
+                ),
         ),
       ),
     );

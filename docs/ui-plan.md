@@ -11,7 +11,7 @@ for Android, iOS, Windows, macOS, Linux and Web. It talks to the backend only th
 | Splash | Restores the session with `GET /users/me`, then routes to Login or Home. Retry on network failure |
 | Login | Email or username, password, "Keep me signed in", forgot-password link, register link. Loading and error states |
 | Register | Username, display name, email, password, confirm password. Client rules mirror contract §3.1 |
-| Forgot / reset password | Request a reset code by email, then set a new password with the code |
+| Forgot / reset password | Request a reset link by email. Opening the link (web) goes straight to the new-password step with the code pre-filled; otherwise paste the code under "I have a reset code" |
 | Home | Conversation list with search (local filter + `/users/search` for people), a "New chat" entry point, connection banner |
 | Chat | Participant with presence or "typing…", messages with day dividers and times, composer |
 | Profile | Avatar, username, display name, email, edit profile, theme, language, logout |

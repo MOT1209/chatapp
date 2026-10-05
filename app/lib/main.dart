@@ -7,6 +7,7 @@ import 'core/api_client.dart';
 import 'core/chat_api.dart';
 import 'core/config.dart';
 import 'core/realtime_client.dart';
+import 'core/reset_link.dart';
 import 'core/token_storage.dart';
 import 'state/settings_controller.dart';
 
@@ -33,6 +34,9 @@ Future<void> main() async {
       api: ChatApi(client),
       realtime: RealtimeClient(url: Uri.parse(AppConfig.wsUrl), tokens: tokens, refreshTokens: client.refreshTokens),
       settings: settings,
+      // Only the web build is ever opened from an emailed link; on other platforms
+      // `Uri.base` is a file URI and yields null.
+      initialResetToken: resetTokenFromUri(Uri.base),
     ),
   );
 }
