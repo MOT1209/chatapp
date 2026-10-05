@@ -185,6 +185,10 @@ describe('env validation — password reset transport (P0-1)', () => {
       DATABASE_URL: 'postgresql://x:x@localhost:5432/x',
       JWT_ACCESS_SECRET: 'dev-access-secret-change-me',
       JWT_REFRESH_SECRET: 'dev-refresh-secret-change-me',
+      // Set explicitly: dotenv re-reads backend/.env on every module reset and only
+      // skips variables that already exist, so without this the assertion depends
+      // on whether the developer's own .env configures SMTP.
+      SMTP_HOST: '',
     };
     vi.resetModules();
     const { smtpConfigured } = await import('../src/config/env.js');

@@ -176,10 +176,13 @@ backend/
   rather than left at Helmet's defaults: a deny-all CSP (including
   `frame-ancestors 'none'`), HSTS in production, and `require-corp`/`same-origin`
   COEP/COOP. `tests/security-headers.test.ts` asserts them on real responses.
-- **Secrets can come from files.** Any config variable accepts a `*_FILE`
-  variant (`JWT_ACCESS_SECRET_FILE=/run/secrets/…`, `SMTP_PASS_FILE=…`) read at
-  startup via `src/config/secrets.ts`, for container and Kubernetes secret mounts.
-  One trailing newline is trimmed and the literal variable wins if both are set.
+- **Secrets can come from files.** `DATABASE_URL`, `JWT_ACCESS_SECRET`,
+  `JWT_REFRESH_SECRET`, `SMTP_USER` and `SMTP_PASS` accept a `*_FILE` variant
+  (`JWT_ACCESS_SECRET_FILE=/run/secrets/…`) read at startup via
+  `src/config/secrets.ts`, for container and Kubernetes secret mounts. The list
+  is an allowlist (`SECRET_ENV_NAMES`): unrelated `*_FILE` variables such as
+  `SSL_CERT_FILE` are never read. One trailing newline is trimmed and the literal
+  variable wins if both are set.
 - `POST /auth/logout` revokes **every** session for the account, not just the
   caller's — see `docs/api-contract.md`'s logout section. A logout carrying a
   cookie without a valid CSRF token clears the cookie and returns `204` but

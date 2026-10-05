@@ -122,7 +122,7 @@ Highlights only — see `.env.example` for the full list.
 | `CORS_ORIGIN` | Comma-separated allowed origins; no wildcard in production |
 | `TRUST_PROXY` | Number of reverse proxies in front of the API (default `1`). Every per-IP rate limiter keys on `req.ip`, so set this to match reality |
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | HMAC secrets. In production they must be long, random and distinct — the server refuses to start otherwise. Each also accepts a `*_FILE` variant for secret mounts |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | HMAC secrets. In production they must be long, random and distinct — the server refuses to start otherwise. Each also accepts a `*_FILE` variant for secret mounts (allowlisted: `DATABASE_URL`, both JWT secrets, `SMTP_USER`, `SMTP_PASS`) |
 | `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | Access / refresh token TTL (default `15m` / `30d`) |
 | `BCRYPT_ROUNDS` | bcrypt cost factor (default `10`) |
 | `SMTP_*`, `APP_BASE_URL` | Outbound mail for password reset. **Required in production** — startup fails without a transport |

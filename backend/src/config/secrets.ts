@@ -20,6 +20,22 @@ import fs from 'node:fs';
  */
 export const SECRET_FILE_SUFFIX = '_FILE';
 
+/**
+ * The only variables that may be supplied as `NAME_FILE`.
+ *
+ * This is an allowlist on purpose. Scanning every `*_FILE` in the environment
+ * would also pick up unrelated platform variables (`SSL_CERT_FILE`,
+ * `PIP_CONFIG_FILE`, `NIX_SSL_CERT_FILE`, ...), copy file contents into
+ * `process.env`, and abort startup whenever one of them is not a readable file.
+ */
+export const SECRET_ENV_NAMES = [
+  'DATABASE_URL',
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+  'SMTP_USER',
+  'SMTP_PASS',
+] as const;
+
 /** Reads a secret from `NAME_FILE`, or returns undefined when it is not configured. */
 function readSecretFile(name: string): string | undefined {
   const path = process.env[`${name}${SECRET_FILE_SUFFIX}`];
@@ -39,13 +55,11 @@ function readSecretFile(name: string): string | undefined {
 }
 
 /**
- * Folds every `*_FILE` variable into its base name, then re-exports the result so
- * `config/env.ts` sees a single, uniform `process.env`. Idempotent.
+ * Folds each allowlisted `NAME_FILE` variable into `NAME`, so `config/env.ts` sees a
+ * single, uniform `process.env`. Idempotent. Variables outside `names` are never read.
  */
-export function loadSecretFiles(): void {
-  const files = Object.keys(process.env).filter((key) => key.endsWith(SECRET_FILE_SUFFIX));
-  for (const fileVar of files) {
-    const name = fileVar.slice(0, -SECRET_FILE_SUFFIX.length);
+export function loadSecretFiles(names: readonly string[] = SECRET_ENV_NAMES): void {
+  for (const name of names) {
     // A literal value already present is authoritative; the file is only a fallback.
     if (process.env[name] !== undefined && process.env[name] !== '') {
       continue;

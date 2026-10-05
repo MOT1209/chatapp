@@ -71,7 +71,7 @@ Every request gets a `requestId` (echoed from a sane inbound `X-Request-Id`, els
 
 All configuration is validated by a single Zod schema (`backend/src/config/env.ts`). A missing or malformed value stops the process with a named field error instead of booting into an unsafe default. `backend/.env.example` documents every variable with its default and whether it is required.
 
-Production additionally refuses to start unless: both JWT secrets are long, non-placeholder and distinct; `APP_BASE_URL` is `https`; SMTP is fully configured; `CORS_ORIGIN` lists explicit origins (no wildcard). Any secret may instead be supplied as a `*_FILE` path so credentials stay out of environment dumps and process listings.
+Production additionally refuses to start unless: both JWT secrets are long, non-placeholder and distinct; `APP_BASE_URL` is `https`; SMTP is fully configured; `CORS_ORIGIN` lists explicit origins (no wildcard). The allowlisted secrets (`DATABASE_URL`, both JWT secrets, `SMTP_USER`, `SMTP_PASS`) may instead be supplied as a `*_FILE` path so credentials stay out of environment dumps and process listings.
 
 `NODE_ENV=test` disables the rate limiters and relaxes the secret checks. Because that combination would ship an API with no auth throttling, startup **refuses** `NODE_ENV=test` against a non-loopback `DATABASE_URL`.
 

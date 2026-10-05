@@ -34,46 +34,46 @@ describe('loadSecretFiles — P0-5 secret management', () => {
 
   it('folds a *_FILE path into the plain variable name', () => {
     setFile('super-secret-value');
-    loadSecretFiles();
+    loadSecretFiles([NAME]);
     expect(process.env[NAME]).toBe('super-secret-value');
   });
 
   it('strips exactly one trailing newline, because every editor adds one', () => {
     setFile('super-secret-value\n');
-    loadSecretFiles();
+    loadSecretFiles([NAME]);
     expect(process.env[NAME]).toBe('super-secret-value');
   });
 
   it('strips a Windows CRLF line ending', () => {
     setFile('super-secret-value\r\n');
-    loadSecretFiles();
+    loadSecretFiles([NAME]);
     expect(process.env[NAME]).toBe('super-secret-value');
   });
 
   it('keeps interior and surrounding whitespace, which may be part of the secret', () => {
     setFile('  spaces matter  ');
-    loadSecretFiles();
+    loadSecretFiles([NAME]);
     expect(process.env[NAME]).toBe('  spaces matter  ');
   });
 
   it('lets a literal value win over the file, so an explicit override still works', () => {
     setFile('from-file');
     process.env[NAME] = 'from-env';
-    loadSecretFiles();
+    loadSecretFiles([NAME]);
     expect(process.env[NAME]).toBe('from-env');
   });
 
   it('falls back to the file when the literal is empty', () => {
     setFile('from-file');
     process.env[NAME] = '';
-    loadSecretFiles();
+    loadSecretFiles([NAME]);
     expect(process.env[NAME]).toBe('from-file');
   });
 
   it('throws rather than silently booting without a secret that was meant to be mounted', () => {
     created.push(`${NAME}_FILE`);
     process.env[`${NAME}_FILE`] = path.join(dir, 'missing.txt');
-    expect(() => loadSecretFiles()).toThrow(new RegExp(`${NAME}_FILE`));
+    expect(() => loadSecretFiles([NAME])).toThrow(new RegExp(`${NAME}_FILE`));
   });
 
   it('never logs the secret value it reads', () => {
@@ -81,7 +81,7 @@ describe('loadSecretFiles — P0-5 secret management', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
-      loadSecretFiles();
+      loadSecretFiles([NAME]);
     } finally {
       warn.mockRestore();
       error.mockRestore();
@@ -92,8 +92,39 @@ describe('loadSecretFiles — P0-5 secret management', () => {
 
   it('is idempotent, so a reload cannot corrupt an already-folded value', () => {
     setFile('stable-value');
-    loadSecretFiles();
-    loadSecretFiles();
+    loadSecretFiles([NAME]);
+    loadSecretFiles([NAME]);
     expect(process.env[NAME]).toBe('stable-value');
+  });
+
+  // Regression: the loader used to scan every `*_FILE` in the environment, so a
+  // platform variable such as SSL_CERT_FILE (or one pointing at a directory or a
+  // missing file) crashed startup, and its contents were copied into process.env.
+  it('ignores *_FILE variables that are not allowlisted secrets', () => {
+    const unrelated = 'CHATAPP_UNRELATED_FILE';
+    process.env[unrelated] = path.join(dir, 'does-not-exist.txt');
+    try {
+      expect(() => loadSecretFiles()).not.toThrow();
+      expect(process.env.CHATAPP_UNRELATED).toBeUndefined();
+    } finally {
+      delete process.env[unrelated];
+    }
+  });
+
+  it('still honours the real secret names by default', () => {
+    const file = path.join(dir, 'jwt.txt');
+    writeFileSync(file, 'file-jwt-secret\n', 'utf8');
+    const prev = { v: process.env.JWT_ACCESS_SECRET, f: process.env.JWT_ACCESS_SECRET_FILE };
+    delete process.env.JWT_ACCESS_SECRET;
+    process.env.JWT_ACCESS_SECRET_FILE = file;
+    try {
+      loadSecretFiles();
+      expect(process.env.JWT_ACCESS_SECRET).toBe('file-jwt-secret');
+    } finally {
+      if (prev.v === undefined) delete process.env.JWT_ACCESS_SECRET;
+      else process.env.JWT_ACCESS_SECRET = prev.v;
+      if (prev.f === undefined) delete process.env.JWT_ACCESS_SECRET_FILE;
+      else process.env.JWT_ACCESS_SECRET_FILE = prev.f;
+    }
   });
 });
