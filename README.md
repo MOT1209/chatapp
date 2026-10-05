@@ -13,7 +13,7 @@ register → search → chat → realtime flow actually works end to end.
   chat with optimistic send and retry, realtime messages, typing indicator,
   read receipts, message deletion, profile editing, dark mode, and an
   Arabic (right-to-left) and English UI. Responsive: bottom navigation on
-  phones; navigation rail + sidebar + chat area on tablets and desktops.
+  phones; a navigation rail with one pane at a time on narrow tablets (600–719 px); rail + sidebar + chat area from 720 px up.
 - Full backend: authentication (register/login/refresh/logout/forgot-reset
   password), user search and profiles, direct conversations, messages with
   idempotent send and cursor-paginated history, read receipts, basic message

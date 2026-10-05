@@ -21,7 +21,8 @@ for Android, iOS, Windows, macOS, Linux and Web. It talks to the backend only th
 | Width | Layout |
 | --- | --- |
 | `< 600` (compact) | Bottom navigation (Chats / Profile). A chat opens full screen with a back button. "New chat" FAB |
-| `600–1023` (medium) | Navigation rail, 300px conversation sidebar, chat area. "New chat" header button |
+| `600–719` (medium, narrow) | Navigation rail, then **one pane at a time**: the conversation list, or the open chat with a back button (Esc and the system Back also close it). "New chat" header button. A list beside a chat would leave the chat ~218px wide at 600, too narrow for bubbles or the composer |
+| `720–1023` (medium) | Navigation rail, 300px conversation sidebar, chat area. "New chat" header button. The two-pane threshold is `kTwoPaneMinWidth` in `app/lib/ui/responsive.dart` |
 | `≥ 1024` (expanded) | Navigation rail, 360px conversation sidebar, chat area. "New chat" header button |
 
 ## Desktop keyboard shortcuts

@@ -12,7 +12,8 @@ import 'conversation_list.dart';
 import 'profile_screen.dart';
 
 /// Compact: list → full-screen chat, with bottom navigation and a "New chat" button.
-/// Medium/expanded: navigation rail | conversation sidebar | chat area.
+/// Medium (below [kTwoPaneMinWidth]): navigation rail, then the list or the open chat, one at a time.
+/// Wide: navigation rail | conversation sidebar | chat area.
 /// Keyboard: Ctrl/⌘+K focuses search, Esc closes the open chat.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -112,6 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final sidebarWidth = size == ScreenSize.expanded ? 360.0 : 300.0;
+    final twoPane = useTwoPane(context);
     return _withShortcuts(
       Scaffold(
         body: SafeArea(
@@ -127,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const VerticalDivider(width: 1),
-              if (_tab == 0) ...[
+              if (_tab == 0 && twoPane) ...[
                 SizedBox(width: sidebarWidth, child: list),
                 const VerticalDivider(width: 1),
                 Expanded(
@@ -138,6 +140,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           message: l.selectConversationHint,
                         )
                       : chat(null),
+                ),
+              ] else if (_tab == 0) ...[
+                // One pane next to the rail: the list, or the open chat with a way back.
+                Expanded(
+                  child: selected == null
+                      ? list
+                      : PopScope(
+                          canPop: false,
+                          onPopInvokedWithResult: (didPop, _) {
+                            if (!didPop) _select(null);
+                          },
+                          child: chat(() => _select(null)),
+                        ),
                 ),
               ] else
                 const Expanded(child: ProfileScreen()),

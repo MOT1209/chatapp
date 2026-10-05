@@ -23,13 +23,14 @@ Future<void> pumpApp(
   Duration backoff = Duration.zero,
   InMemoryTokenStorage? deviceStore,
   String? resetToken,
+  ThemeMode themeMode = ThemeMode.light,
 }) async {
   tester.view
     ..devicePixelRatio = 1
     ..physicalSize = size;
   addTearDown(tester.view.reset);
 
-  SharedPreferences.setMockInitialValues({'ui.locale': locale});
+  SharedPreferences.setMockInitialValues({'ui.locale': locale, 'ui.themeMode': themeMode.name});
   final prefs = await SharedPreferences.getInstance();
   final settings = SettingsController(prefs);
   // Same wiring as main.dart; [deviceStore] stands in for the OS credential store.
@@ -65,6 +66,11 @@ Future<void> unmount(WidgetTester tester) async {
 Future<void> login(WidgetTester tester, String identifier, String password, {String button = 'Login'}) async {
   await tester.enterText(find.byKey(const Key('login.identifier')), identifier);
   await tester.enterText(find.byKey(const Key('login.password')), password);
-  await tester.tap(find.widgetWithText(FilledButton, button));
+  final submit = find.widgetWithText(FilledButton, button);
+  // At large text sizes the form is taller than a short window and scrolls; a user would
+  // scroll to the button, so the test must too instead of tapping blind below the fold.
+  await tester.ensureVisible(submit);
+  await tester.pumpAndSettle();
+  await tester.tap(submit);
   await tester.pumpAndSettle();
 }

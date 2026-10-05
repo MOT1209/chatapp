@@ -298,11 +298,16 @@ class MessageBubble extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                time,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: (failed ? scheme.onErrorContainer : foreground).withValues(alpha: 0.75),
+              // Flexible so a narrow bubble at a large text size shortens the time instead of overflowing.
+              Flexible(
+                child: Text(
+                  time,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: (failed ? scheme.onErrorContainer : foreground).withValues(alpha: 0.75),
+                  ),
                 ),
               ),
               if (isMine && !deleted) ...[

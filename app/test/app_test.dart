@@ -1,4 +1,5 @@
 import 'package:chat_app/core/token_storage.dart';
+import 'package:chat_app/ui/responsive.dart';
 import 'package:chat_app/ui/screens/chat_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -477,6 +478,49 @@ void main() {
       await unmount(tester);
     });
 
+    testWidgets('a 600px window gives an open chat the whole pane beside the rail, with a way back', (tester) async {
+      // 600 used to split into rail 80 + list 300 + chat 218: too narrow to use. Below
+      // kTwoPaneMinWidth only one of list and chat is shown, like the phone layout.
+      await signedIn(tester, const Size(600, 960));
+      expect(find.byType(NavigationRail), findsOneWidget);
+      expect(find.byKey(const Key('home.search')), findsOneWidget);
+
+      await tester.tap(find.text('Sara'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsOneWidget);
+      expect(find.byKey(const Key('home.search')), findsNothing, reason: 'the list is hidden, not squeezed');
+      // It used to be 218; now it is everything beside the rail.
+      expect(tester.getSize(find.byType(ChatScreen)).width, greaterThan(450));
+
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsNothing);
+      expect(find.byKey(const Key('home.search')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await unmount(tester);
+    });
+
+    testWidgets('Escape closes the open chat in the one-pane layout too', (tester) async {
+      await signedIn(tester, const Size(600, 960));
+      await tester.tap(find.text('Sara'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsNothing);
+      await unmount(tester);
+    });
+
+    testWidgets('exactly at the threshold the list and the chat sit side by side', (tester) async {
+      await signedIn(tester, Size(kTwoPaneMinWidth, 900));
+      await tester.tap(find.text('Sara'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsOneWidget);
+      expect(find.byKey(const Key('home.search')), findsOneWidget);
+      expect(tester.getSize(find.byType(ChatScreen)).width, greaterThanOrEqualTo(300));
+      expect(tester.takeException(), isNull);
+      await unmount(tester);
+    });
+
     testWidgets('desktop keeps the list visible while a chat is open', (tester) async {
       await signedIn(tester, desktop);
       expect(find.byType(NavigationBar), findsNothing);
@@ -488,6 +532,32 @@ void main() {
       expect(tester.takeException(), isNull);
       await unmount(tester);
     });
+  });
+
+  group('Software keyboard', () {
+    // The composer is the one thing a chat app cannot let the keyboard cover.
+    for (final size in [const Size(360, 640), const Size(390, 844), const Size(412, 915)]) {
+      testWidgets('${size.width.toInt()}x${size.height.toInt()}: the message field stays above the keyboard', (
+        tester,
+      ) async {
+        await pumpApp(tester, backend, size: size, storedTokens: Tokens(backend.issueToken('u_ahmad'), 'r'));
+        await tester.tap(find.text('Sara'));
+        await tester.pumpAndSettle();
+
+        const keyboard = 300.0;
+        tester.view.viewInsets = const FakeViewPadding(bottom: keyboard);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pumpAndSettle();
+
+        final input = tester.getRect(find.byKey(const Key('chat.input')));
+        final send = tester.getRect(find.byKey(const Key('chat.send')));
+        expect(input.bottom, lessThanOrEqualTo(size.height - keyboard), reason: 'text field is under the keyboard');
+        expect(send.bottom, lessThanOrEqualTo(size.height - keyboard), reason: 'send button is under the keyboard');
+        expect(input.top, greaterThanOrEqualTo(0));
+        expect(tester.takeException(), isNull);
+        await unmount(tester);
+      });
+    }
   });
 
   group('Connection banner', () {
