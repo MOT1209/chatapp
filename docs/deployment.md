@@ -76,6 +76,22 @@ services:
       # Comma-separated origins, e.g. https://chat.example.com
       - key: CORS_ORIGIN
         sync: false
+      # The web client's origin, https only (production refuses http). It is the base of the
+      # emailed password-reset link, so it must be where the web build is hosted.
+      - key: APP_BASE_URL
+        sync: false
+      # Outbound mail for password reset. Production refuses to boot without a transport, so
+      # these are required: any SMTP provider works. SMTP_USER and SMTP_PASS go together.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: '587'
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
       - key: BCRYPT_ROUNDS
         value: '10'
 ```
@@ -88,7 +104,7 @@ services:
   its own region; a mismatch gives `P1001: Can't reach database server`.
 - **Pin Node 22** (`NODE_VERSION`), the version CI tests; otherwise Render picks the newest Node.
 - **Single instance only.** The realtime hub is in-memory (see [architecture](./architecture.md)).
-- **No email provider yet.** In production `forgot-password` returns 202 and sends nothing.
+- **An SMTP provider is required.** Production refuses to start without `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM` and an `https://` `APP_BASE_URL` (backend `config/env.ts`); `forgot-password` always answers 202 and the link is delivered by SMTP.
 - With `rootDir: backend`, Render deploys only when files under `backend/` change.
 
 ## Hosting the web build
