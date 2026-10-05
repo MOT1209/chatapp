@@ -130,6 +130,9 @@ class AppLocalizationsDe extends AppLocalizations {
       'Gib die E-Mail deines Kontos ein, und wir senden dir einen Code zum Zurücksetzen.';
 
   @override
+  String get resetPasswordSubtitleNewPassword => 'Gib den Code aus deiner E-Mail ein und wähle ein neues Passwort.';
+
+  @override
   String get sendResetCode => 'Code senden';
 
   @override

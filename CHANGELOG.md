@@ -7,14 +7,49 @@ All notable changes to ChatApp are documented here.
 Mobile + desktop development pass on `v0.0.2-beta`'s stabilized base, plus the first
 working password-reset email. See `docs/ui-plan.md` for the UI picture.
 
+### Audit pass (quality, security, stability)
+
+Found by running the whole stack rather than reading it; each fix has a test that fails
+without it. Details in `docs/QUALITY_REPORT.md`.
+
+- **Fixed: the emailed reset link did nothing.** The app never read the URL, so the link
+  opened Login and the token was lost. The web build now opens the new-password step with
+  the code pre-filled (`resetTokenFromUri`).
+- **Fixed: refresh-token reuse signed users out everywhere.** Two browser tabs share one
+  refresh cookie; the loser of a refresh race looked like theft and revoked every session.
+  A short grace window (`REFRESH_REUSE_GRACE_SECONDS`, default 10) refuses the stale token
+  without revoking; later reuse still revokes all. The client adopts a token another tab
+  just stored instead of clearing it.
+- **Fixed: 500 on bad input.** A lone UTF-16 surrogate (an emoji cut in half) or a NUL byte
+  in any text field, an oversized body (now 413), an unsupported content-encoding (415) and
+  an undecodable path escape all returned 500. All are 4xx in the standard envelope now.
+- **Fixed: `start-server.bat`** wrote the same JWT secrets, committed to the repo, into every
+  install (anyone on the LAN could forge tokens), overwrote `.env` on each run, built an
+  invalid URL for passwords with `@ : / %`, and used the shared `postgres` database (the
+  cause of `prisma migrate deploy` P3005). It now generates random secrets, URL-encodes,
+  keeps an existing `.env` and uses a dedicated `chatapp` database.
+- **Fixed: a secret loader that crashed on unrelated variables.** `*_FILE` secret loading
+  scanned every `*_FILE` variable (`SSL_CERT_FILE`, ...). It is now an allowlist.
+- **Fixed: tablet layout.** At 600-719 px the chat pane was 218 px wide. Below 720 px the
+  rail shows one pane at a time. The bubble time row no longer overflows.
+- **Security: WebSocket abuse limits** (per-account connection cap, per-socket frame budget,
+  slow-reader drop, close code 4429), and no reset link is printed to the console unless
+  `DEV_LOG_RESET_TOKEN=true` in development (production refuses it).
+- **Dependencies:** `npm audit` 6 advisories (1 critical, 1 high; dev tooling only) -> 0 via
+  Vitest 5 + Vite 7 (Node >= 22.12 for the backend tests). Dependabot now covers npm and pub.
+- **CI hygiene:** `dart format` was failing on 8 files; fixed.
+- **Tests:** backend 239 -> 312, Flutter 150 -> 378 (13 window sizes x en/ar/de x text scale
+  1.0/1.5/2.0 x light/dark, signed-out screens, software keyboard, pagination under heavy
+  timestamp ties, the second half of the end-to-end journey).
+
 ### Added
 
-- **Password-reset email.** `forgot-password` now emails the reset token through a
-  pluggable mailer (`backend/src/lib/mailer.ts`): Resend when `RESEND_API_KEY` and
-  `MAIL_FROM` are set, otherwise a no-op that logs (address only, never the token) so
-  the endpoint is unchanged without a provider. A provider failure is logged and
-  swallowed — it cannot 5xx or reveal whether an address is registered. Contract §6.6
-  updated. Optional `APP_WEB_URL` adds a clickable reset link to the email.
+- **Password-reset email.** `forgot-password` emails a reset link over SMTP
+  (`backend/src/services/email.service.ts`, nodemailer). Without a transport the endpoint
+  is unchanged and logs only that no mail was sent (never the address or the token); a
+  provider failure is logged by error name, swallowed, and cannot 5xx or reveal whether an
+  address is registered. Contract §3.1/§6.6. (An earlier draft of this entry described a
+  Resend-based `lib/mailer.ts` and an `APP_WEB_URL` setting; neither exists.)
 - **German**, alongside Arabic and English, selectable from Profile.
 - **Connection banner.** Connecting / reconnecting / lost (with "Retry now") / a brief
   "Connected" after recovery, shown on Home and in the full-screen phone chat. Replaces

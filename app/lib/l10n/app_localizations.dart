@@ -333,6 +333,12 @@ abstract class AppLocalizations {
   /// **'Enter your account email and we\'ll send you a reset code.'**
   String get resetPasswordSubtitle;
 
+  /// No description provided for @resetPasswordSubtitleNewPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the code from your email and choose a new password.'**
+  String get resetPasswordSubtitleNewPassword;
+
   /// No description provided for @sendResetCode.
   ///
   /// In en, this message translates to:

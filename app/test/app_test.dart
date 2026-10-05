@@ -121,6 +121,9 @@ void main() {
       expect(find.byKey(const Key('forgot.email')), findsNothing);
       final code = tester.widget<TextFormField>(find.byKey(const Key('reset.code')));
       expect(code.controller!.text, FakeBackend.validResetCode);
+      // The copy matches the step: not "enter your email and we'll send you a code".
+      expect(find.text('Enter the code from your email and choose a new password.'), findsOneWidget);
+      expect(find.textContaining("we'll send you a reset code"), findsNothing);
 
       await tester.enterText(find.byKey(const Key('reset.password')), 'new-password');
       await tester.enterText(find.byKey(const Key('reset.confirm')), 'new-password');
@@ -158,6 +161,7 @@ void main() {
       expect(backend.forgotPasswordEmails, ['ahmad@example.com']);
       expect(find.textContaining('a reset code is on its way'), findsOneWidget);
 
+      expect(find.textContaining("we'll send you a reset code"), findsOneWidget);
       await tester.tap(find.text('I have a reset code'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('reset.code')), 'wrong');

@@ -97,7 +97,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final v = RegisterValidators(l);
     return AuthLayout(
       title: l.resetPasswordTitle,
-      subtitle: l.resetPasswordSubtitle,
+      // The first step asks for an email; the second (also reached from the emailed link) for the
+      // code and a new password, so it needs its own sentence.
+      subtitle: _codeStep ? l.resetPasswordSubtitleNewPassword : l.resetPasswordSubtitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

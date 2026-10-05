@@ -43,6 +43,7 @@
 
   "resetPasswordTitle": "Reset your password",
   "resetPasswordSubtitle": "Enter your account email and we'll send you a reset code.",
+  "resetPasswordSubtitleNewPassword": "Enter the code from your email and choose a new password.",
   "sendResetCode": "Send reset code",
   "resetCodeSent": "If an account exists for that email, a reset code is on its way.",
   "haveResetCode": "I have a reset code",

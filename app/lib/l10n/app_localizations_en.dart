@@ -129,6 +129,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get resetPasswordSubtitle => 'Enter your account email and we\'ll send you a reset code.';
 
   @override
+  String get resetPasswordSubtitleNewPassword => 'Enter the code from your email and choose a new password.';
+
+  @override
   String get sendResetCode => 'Send reset code';
 
   @override

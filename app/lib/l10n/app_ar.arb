@@ -43,6 +43,7 @@
 
   "resetPasswordTitle": "إعادة تعيين كلمة المرور",
   "resetPasswordSubtitle": "أدخل البريد الإلكتروني لحسابك وسنرسل لك رمز إعادة التعيين.",
+  "resetPasswordSubtitleNewPassword": "أدخل الرمز الذي وصلك بالبريد واختر كلمة مرور جديدة.",
   "sendResetCode": "إرسال الرمز",
   "resetCodeSent": "إذا كان هناك حساب بهذا البريد، فسيصلك رمز إعادة التعيين قريبًا.",
   "haveResetCode": "لديّ رمز إعادة التعيين",

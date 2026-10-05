@@ -129,6 +129,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get resetPasswordSubtitle => 'أدخل البريد الإلكتروني لحسابك وسنرسل لك رمز إعادة التعيين.';
 
   @override
+  String get resetPasswordSubtitleNewPassword => 'أدخل الرمز الذي وصلك بالبريد واختر كلمة مرور جديدة.';
+
+  @override
   String get sendResetCode => 'إرسال الرمز';
 
   @override

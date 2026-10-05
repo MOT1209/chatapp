@@ -43,6 +43,7 @@
 
   "resetPasswordTitle": "Passwort zurücksetzen",
   "resetPasswordSubtitle": "Gib die E-Mail deines Kontos ein, und wir senden dir einen Code zum Zurücksetzen.",
+  "resetPasswordSubtitleNewPassword": "Gib den Code aus deiner E-Mail ein und wähle ein neues Passwort.",
   "sendResetCode": "Code senden",
   "resetCodeSent": "Falls ein Konto mit dieser E-Mail existiert, ist ein Code unterwegs.",
   "haveResetCode": "Ich habe einen Code",
