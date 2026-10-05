@@ -144,6 +144,10 @@ describe('env validation — password reset transport (P0-1)', () => {
     await expectRejected({ CORS_ORIGIN: '*' }, /explicit origins/);
   });
 
+  it('refuses to boot production with DEV_LOG_RESET_TOKEN, which would print reset links to the logs', async () => {
+    await expectRejected({ DEV_LOG_RESET_TOKEN: 'true' }, /DEV_LOG_RESET_TOKEN/);
+  });
+
   it('rejects SameSite=none without Secure, which browsers would reject outright', async () => {
     await expectRejected({ COOKIE_SAME_SITE: 'none' }, /COOKIE_SECURE/);
   });

@@ -30,9 +30,10 @@ register → search → chat → realtime flow actually works end to end.
 
 Explicitly **not** in Alpha v0.0.1: groups, file sharing, voice messages, video
 calls, AI features, notifications, message editing, real email delivery for
-password reset (the token is logged to the console in development only, and
-never logged, returned, or exposed at all in production — see
-`docs/api-contract.md` §6.6).
+password reset (without a mail provider the link is printed to the server console
+only when `DEV_LOG_RESET_TOKEN=true` in development; it is never logged, returned,
+or exposed at all in production, and production refuses to start with that flag —
+see `docs/api-contract.md` §6.6).
 
 ## Architecture
 
@@ -129,6 +130,8 @@ Highlights only — see `.env.example` for the full list.
 | `PASSWORD_RESET_*` | Reset link lifetime and the per-account send cooldown |
 | `COOKIE_*` | HttpOnly refresh-cookie policy |
 | `CLEANUP_BATCH_SIZE`, `SESSION_RETENTION_DAYS`, `RESET_TOKEN_RETENTION_DAYS` | Budgets for `npm run cleanup` |
+| `REFRESH_REUSE_GRACE_SECONDS` | Window (default 10 s, 0-60) in which a just-rotated refresh token presented again is refused without revoking all sessions — two browser tabs racing on one cookie. After it, reuse is treated as theft |
+| `DEV_LOG_RESET_TOKEN` | Development only (default `false`; production refuses `true`): print the reset link to the console when there is no mail provider |
 | `WS_MAX_CONNECTIONS_PER_USER` | Simultaneous WebSocket connections per account (default 10, range 1-100). Extra connections are refused with close code `4429` |
 
 `.env` is ignored by git. Never commit real secrets.

@@ -10,9 +10,9 @@ import {
 import { conflict, invalidCredentials, unauthenticated, validationError } from '../lib/errors.js';
 import { serializeUser, type UserDTO } from '../lib/serializers.js';
 import { isUniqueConstraintError } from '../lib/prisma-errors.js';
-import { env } from '../config/env.js';
+import { env, envFlag } from '../config/env.js';
 import { wsHub } from '../realtime/ws-hub.js';
-import { sendPasswordResetEmail } from './email.service.js';
+import { resetUrl, sendPasswordResetEmail } from './email.service.js';
 import crypto from 'node:crypto';
 
 export type AuthTokens = { accessToken: string; refreshToken: string };
@@ -126,9 +126,15 @@ export async function refresh(refreshToken: string, meta: SessionMeta): Promise<
   }
 
   if (session.revokedAt) {
-    // A rotated-out token showing up again means it was copied (or replayed by a
-    // racing client). Kill every session so a thief's freshly issued token dies too.
-    await logoutAllSessions(session.userId);
+    // A rotated-out token showing up again means it was copied, or that another tab of the
+    // same browser (they share one refresh cookie) rotated it a moment ago. Inside the grace
+    // window assume the benign case: refuse the stale token but leave the new session alone.
+    // After it, treat reuse as theft and kill every session so a thief's freshly issued token
+    // dies too.
+    const graceMs = env.REFRESH_REUSE_GRACE_SECONDS * 1000;
+    if (Date.now() - session.revokedAt.getTime() >= graceMs) {
+      await logoutAllSessions(session.userId);
+    }
     throw unauthenticated('Refresh token is invalid or expired.');
   }
 
@@ -287,11 +293,12 @@ export async function requestPasswordReset(email: string): Promise<{ resetToken:
     return; // Production: the token exists only as a hash from this point on.
   }
 
-  if (env.NODE_ENV === 'development') {
-    // Fallback so the flow stays testable by hand without a mail provider. Never
-    // runs in production, and not in test — tests read the token from the return
-    // value below instead of scraping stdout.
-    console.log(`[dev-only] Password reset token for ${user.email}: ${rawToken}`);
+  if (env.NODE_ENV === 'development' && envFlag(env.DEV_LOG_RESET_TOKEN)) {
+    // Opt-in fallback so the flow stays testable by hand without a mail provider. The link
+    // is a credential, so it is never printed unless DEV_LOG_RESET_TOKEN is set, never in
+    // production (config validation refuses that), and never in test — tests read the token
+    // from the return value below instead of scraping stdout. The address is left out.
+    console.log(`[dev-only] Password reset link: ${resetUrl(rawToken)}`);
   }
 
   return { resetToken: rawToken };

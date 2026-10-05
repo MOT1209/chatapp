@@ -7,8 +7,17 @@ import { resetDb } from './helpers/db.js';
 import { prisma } from '../src/lib/prisma.js';
 import * as authService from '../src/services/auth.service.js';
 import * as emailService from '../src/services/email.service.js';
+import { env } from '../src/config/env.js';
 
 let app: Express;
+
+/** Makes every already-revoked session look as if it was rotated `ms` milliseconds ago. */
+async function ageRotatedSessions(ms: number): Promise<void> {
+  await prisma.session.updateMany({
+    where: { revokedAt: { not: null } },
+    data: { revokedAt: new Date(Date.now() - ms) },
+  });
+}
 
 beforeAll(() => {
   app = buildTestApp();
@@ -215,10 +224,11 @@ describe('POST /api/auth/refresh', () => {
     expect(results.filter((r) => r.status === 200)).toHaveLength(1);
   });
 
-  it('revokes every session when a rotated-out refresh token is replayed', async () => {
+  it('revokes every session when a rotated-out refresh token is replayed after the grace window', async () => {
     const { refreshToken } = await registerUser(app, { username: 'replayed' });
     const rotated = await request(app).post('/api/auth/refresh').send({ refreshToken });
     expect(rotated.status).toBe(200);
+    await ageRotatedSessions(60_000);
 
     // Replaying the old token is treated as theft: the legitimately rotated token dies too.
     const replay = await request(app).post('/api/auth/refresh').send({ refreshToken });
@@ -227,6 +237,58 @@ describe('POST /api/auth/refresh', () => {
       .post('/api/auth/refresh')
       .send({ refreshToken: rotated.body.refreshToken as string });
     expect(afterReplay.status).toBe(401);
+  });
+
+  describe('reuse grace window (two tabs sharing one refresh cookie)', () => {
+    it('refuses a token rotated a moment ago but keeps the new session alive', async () => {
+      const { refreshToken } = await registerUser(app, { username: 'twotabs' });
+      const winner = await request(app).post('/api/auth/refresh').send({ refreshToken });
+      expect(winner.status).toBe(200);
+
+      // The losing tab arrives with the cookie value the winner just rotated away.
+      const loser = await request(app).post('/api/auth/refresh').send({ refreshToken });
+      expect(loser.status).toBe(401);
+      expect(loser.body.error.code).toBe('UNAUTHENTICATED');
+
+      // Before this fix that replay signed the user out of everything, including this token.
+      const stillValid = await request(app)
+        .post('/api/auth/refresh')
+        .send({ refreshToken: winner.body.refreshToken as string });
+      expect(stillValid.status).toBe(200);
+    });
+
+    it('still treats the same replay as theft once the window has passed', async () => {
+      const { refreshToken } = await registerUser(app, { username: 'latereplay' });
+      const winner = await request(app).post('/api/auth/refresh').send({ refreshToken });
+      await ageRotatedSessions(env.REFRESH_REUSE_GRACE_SECONDS * 1000 + 1_000);
+
+      expect((await request(app).post('/api/auth/refresh').send({ refreshToken })).status).toBe(401);
+      const afterTheft = await request(app)
+        .post('/api/auth/refresh')
+        .send({ refreshToken: winner.body.refreshToken as string });
+      expect(afterTheft.status).toBe(401);
+    });
+
+    it('is strict when the window is set to 0', async () => {
+      const previous = env.REFRESH_REUSE_GRACE_SECONDS;
+      env.REFRESH_REUSE_GRACE_SECONDS = 0;
+      try {
+        const { refreshToken } = await registerUser(app, { username: 'strictmode' });
+        const winner = await request(app).post('/api/auth/refresh').send({ refreshToken });
+        await request(app).post('/api/auth/refresh').send({ refreshToken });
+        const afterReplay = await request(app)
+          .post('/api/auth/refresh')
+          .send({ refreshToken: winner.body.refreshToken as string });
+        expect(afterReplay.status).toBe(401);
+      } finally {
+        env.REFRESH_REUSE_GRACE_SECONDS = previous;
+      }
+    });
+
+    it('ships a short, bounded default', () => {
+      expect(env.REFRESH_REUSE_GRACE_SECONDS).toBeGreaterThan(0);
+      expect(env.REFRESH_REUSE_GRACE_SECONDS).toBeLessThanOrEqual(60);
+    });
   });
 
   it('rejects a refresh token whose session has expired', async () => {
@@ -406,6 +468,53 @@ describe('POST /api/auth/forgot-password — email delivery', () => {
     // email.service swallows provider failures and returns false; the reset flow
     // must keep answering identically either way (contract §3.1/§6.6).
     await expect(authService.requestPasswordReset('flaky@example.com')).resolves.toBeDefined();
+  });
+});
+
+describe('dev-only reset link logging', () => {
+  async function requestFor(email: string): Promise<string[]> {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      await authService.requestPasswordReset(email);
+      return log.mock.calls.map((call) => call.join(' '));
+    } finally {
+      vi.restoreAllMocks();
+    }
+  }
+
+  async function withEnv<T>(nodeEnv: string, flag: string, run: () => Promise<T>): Promise<T> {
+    const previous = { nodeEnv: env.NODE_ENV, flag: env.DEV_LOG_RESET_TOKEN };
+    env.NODE_ENV = nodeEnv as typeof env.NODE_ENV;
+    env.DEV_LOG_RESET_TOKEN = flag;
+    try {
+      return await run();
+    } finally {
+      env.NODE_ENV = previous.nodeEnv;
+      env.DEV_LOG_RESET_TOKEN = previous.flag;
+    }
+  }
+
+  it('prints nothing by default, even in development: a reset link is a credential', async () => {
+    await registerUser(app, { username: 'quietdev', email: 'quietdev@example.com' });
+    const lines = await withEnv('development', 'false', () => requestFor('quietdev@example.com'));
+    expect(lines).toEqual([]);
+  });
+
+  it('prints the link, but not the address, when explicitly enabled in development', async () => {
+    await registerUser(app, { username: 'loudev', email: 'loudev@example.com' });
+    const lines = await withEnv('development', 'true', () => requestFor('loudev@example.com'));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/\/reset-password\?token=[0-9a-f]{64}$/);
+    expect(lines[0]).not.toContain('loudev@example.com');
+  });
+
+  it('ignores the flag outside development', async () => {
+    await registerUser(app, { username: 'notdev', email: 'notdev@example.com' });
+    for (const nodeEnv of ['test', 'production']) {
+      const lines = await withEnv(nodeEnv, 'true', () => requestFor('notdev@example.com'));
+      expect(lines, nodeEnv).toEqual([]);
+    }
   });
 });
 

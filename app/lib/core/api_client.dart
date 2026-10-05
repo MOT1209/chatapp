@@ -158,7 +158,7 @@ class ApiClient {
   Future<bool> _doRefresh() async {
     final stored = await tokens.read();
     // A cookie session keeps nothing locally, so an empty store is no reason to
-    // give up \u2014 the cookie is the credential. Native has nothing to present.
+    // give up — the cookie is the credential. Native has nothing to present.
     if (!_usesRefreshCookie && (stored == null || stored.refreshToken.isEmpty)) return false;
 
     try {
@@ -175,6 +175,15 @@ class ApiClient {
     } on ApiException catch (e) {
       // A network blip is not a rejected session; keep the tokens and let the caller surface it.
       if (e.isNetwork) rethrow;
+      // On the web, tabs share one refresh cookie and one stored access token. If another
+      // tab rotated the cookie first, this refresh is refused even though the session is
+      // fine, and that tab has already stored a fresh access token. Adopt it instead of
+      // signing everyone out. Only a token that *differs* from the one this call started
+      // with counts, so a genuinely dead session (nothing new stored) still ends here.
+      final current = await tokens.read();
+      if (current != null && current.accessToken.isNotEmpty && current.accessToken != stored?.accessToken) {
+        return true;
+      }
       await tokens.clear();
       _csrfToken = null;
       onSessionExpired?.call();

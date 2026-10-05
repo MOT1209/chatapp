@@ -137,6 +137,28 @@ const EnvSchema = z
      * clients over the limit kick each other off in a reconnect loop.
      */
     WS_MAX_CONNECTIONS_PER_USER: z.coerce.number().int().min(1).max(100).default(10),
+
+    // --- Sessions ---
+    /**
+     * How long after a refresh token is rotated away that presenting it again is treated as
+     * a race rather than theft. Two browser tabs share one refresh cookie, so when both see
+     * an expired access token at the same moment the second one arrives with a token the
+     * first has just rotated. Revoking *every* session for that (the strict reading of
+     * "reuse means theft") signs the user out of everything at random. Inside this window the
+     * stale token is simply refused; after it, reuse revokes all sessions as before. A thief
+     * replaying inside the window gains nothing: the token is refused and no session is issued.
+     * `0` restores the strict behaviour.
+     */
+    REFRESH_REUSE_GRACE_SECONDS: z.coerce.number().int().min(0).max(60).default(10),
+
+    // --- Development conveniences ---
+    /**
+     * Print the password-reset link to the server console, for local setups with no mail
+     * provider. Off by default and forbidden in production: a reset link is a credential,
+     * and console output usually ends up in a log aggregator. Only honoured when
+     * NODE_ENV=development.
+     */
+    DEV_LOG_RESET_TOKEN: z.string().default('false'),
   })
   .superRefine((data, ctx) => {
     const issue = (field: string, message: string): void => {
@@ -159,6 +181,10 @@ const EnvSchema = z
       );
     }
 
+    if (data.NODE_ENV === 'production' && envFlag(data.DEV_LOG_RESET_TOKEN)) {
+      issue('DEV_LOG_RESET_TOKEN', 'DEV_LOG_RESET_TOKEN would print password-reset links to the logs; it must not be enabled in production.');
+    }
+
     if (data.NODE_ENV !== 'production') {
       // A half-configured credential pair is still wrong everywhere: the provider
       // rejects the handshake and every reset email bounces. But the *presence* of
@@ -176,7 +202,7 @@ const EnvSchema = z
     if (firstMissing !== undefined) {
       issue(
         firstMissing,
-        `${missingSmtp.join(', ')} must be set. Without a real transport a password reset email can never be delivered, so production refuses to boot. Provide the values as literals or as ${firstMissing}_FILE paths (see backend/README.md â†’ Secrets).`,
+        `${missingSmtp.join(', ')} must be set. Without a real transport a password reset email can never be delivered, so production refuses to boot. Provide the values as literals or as ${firstMissing}_FILE paths (see backend/README.md → Secrets).`,
       );
     }
     if (Boolean(data.SMTP_USER) !== Boolean(data.SMTP_PASS)) {

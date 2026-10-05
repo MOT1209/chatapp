@@ -40,6 +40,9 @@ export function buildLocalEnv(input: LocalEnvInput): string {
   if (lanIp) {
     origins.push(`http://${lanIp}:5173`);
   }
+  // Where the emailed reset link points: the web app, not the API. Prefer the LAN address
+  // when there is one, since that is how a phone (the reason for giving it) reaches the app.
+  const appBaseUrl = lanIp ? `http://${lanIp}:5173` : 'http://localhost:5173';
 
   // The password goes through encodeURIComponent: a raw `@`, `:`, `/`, `%`, `#` or `?`
   // would end the credentials early or make the URL unparseable.
@@ -65,6 +68,9 @@ export function buildLocalEnv(input: LocalEnvInput): string {
       'JWT_ACCESS_TTL=15m',
       'JWT_REFRESH_TTL=30d',
       'BCRYPT_ROUNDS=10',
+      `APP_BASE_URL=${appBaseUrl}`,
+      // No mail provider on a personal machine, so print the reset link to this console.
+      'DEV_LOG_RESET_TOKEN=true',
     ].join('\n') + '\n'
   );
 }

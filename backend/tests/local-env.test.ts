@@ -64,6 +64,15 @@ describe('buildLocalEnv (start-server.bat first-run .env)', () => {
     },
   );
 
+  it('points the emailed reset link at the web app, not the API', () => {
+    expect(envOf({ dbPassword: 'pw' }).APP_BASE_URL).toBe('http://localhost:5173');
+    expect(envOf({ dbPassword: 'pw', lanIp: '192.168.1.20' }).APP_BASE_URL).toBe('http://192.168.1.20:5173');
+  });
+
+  it('prints reset links to the console, since a personal machine has no mail provider', () => {
+    expect(envOf({ dbPassword: 'pw' }).DEV_LOG_RESET_TOKEN).toBe('true');
+  });
+
   it('rejects an empty password', () => {
     expect(() => buildLocalEnv({ dbPassword: '' })).toThrow(/empty/);
   });

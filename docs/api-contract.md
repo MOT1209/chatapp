@@ -301,6 +301,19 @@ Success response — **both** tokens are returned, because the backend is free t
 Both the cookie and the body's refresh token are rotated together, and the
 returned `csrfToken` matches the new value.
 
+**Reuse of a rotated token.** Presenting a refresh token that was already rotated
+away is refused with `401 UNAUTHENTICATED`. What else happens depends on how long
+ago it was rotated (`REFRESH_REUSE_GRACE_SECONDS`, default 10, `0` = strict):
+
+| Rotated … | Interpretation | Effect |
+| --- | --- | --- |
+| less than the grace window ago | the same browser's other tab racing us — tabs share one refresh cookie | refused; the new session is left alone |
+| longer ago | a copied token being replayed | refused, **and every session of the user is revoked** so a thief's freshly issued token dies too |
+
+The web client mirrors this: if its refresh is refused but the shared storage now
+holds a *different* access token than the one it started with, another tab won the
+race, so it adopts that token instead of signing out.
+
 A failed CSRF check does **not** consume the session, so a real client whose
 token went stale is not locked out.
 

@@ -116,6 +116,37 @@ void main() {
     expect(await tokens.read(), isNull);
   });
 
+  test('a refresh rejected because another tab just rotated the cookie adopts that tab\'s tokens', () async {
+    // Two browser tabs share one refresh cookie and one stored access token. When both hit
+    // an expired token together, the loser's refresh is refused (the winner already rotated
+    // the cookie) and the winner has already stored a fresh access token. Treating that
+    // refusal as "session over" would sign the user out of a perfectly good session.
+    final tokens = InMemoryTokenStorage(const Tokens('old', 'r1'));
+    var expired = 0;
+    final seenAuth = <String?>[];
+    final client = ApiClient(
+      baseUrl: 'http://x',
+      tokens: tokens,
+      httpClient: MockClient((r) async {
+        if (r.url.path == '/api/auth/refresh') {
+          await tokens.write(const Tokens('fresh-from-other-tab', 'r2')); // the other tab, a moment earlier
+          return _error(401, 'UNAUTHENTICATED', 'Refresh token is invalid or expired.');
+        }
+        seenAuth.add(r.headers['Authorization']);
+        return r.headers['Authorization'] == 'Bearer fresh-from-other-tab'
+            ? _json(200, {'ok': true})
+            : _error(401, 'TOKEN_EXPIRED', 'Expired.');
+      }),
+    )..onSessionExpired = () => expired++;
+
+    final result = await client.get('/users/me');
+
+    expect(result, {'ok': true});
+    expect(expired, 0);
+    expect((await tokens.read())?.accessToken, 'fresh-from-other-tab');
+    expect(seenAuth, ['Bearer old', 'Bearer fresh-from-other-tab']);
+  });
+
   test('UNAUTHENTICATED on a protected call ends the session', () async {
     final tokens = InMemoryTokenStorage(const Tokens('bad', 'r1'));
     var expired = 0;

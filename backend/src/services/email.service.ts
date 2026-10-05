@@ -45,7 +45,7 @@ export type PasswordResetMail = {
  * frontend origin rather than the API. `APP_BASE_URL` is validated as https in
  * production, so the link cannot be downgraded in transit.
  */
-function resetUrl(resetToken: string): string {
+export function resetUrl(resetToken: string): string {
   return `${env.APP_BASE_URL.replace(/\/+$/, '')}/reset-password?token=${encodeURIComponent(resetToken)}`;
 }
 
