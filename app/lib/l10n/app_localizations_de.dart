@@ -190,6 +190,32 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noPeopleFound => 'Keine Personen gefunden';
 
   @override
+  String get noPeopleFoundHint => 'Versuche einen anderen Namen oder Benutzernamen, mindestens 2 Zeichen.';
+
+  @override
+  String get startNewChatTitle => 'Finde jemanden zum Chatten';
+
+  @override
+  String get contacts => 'Kontakte';
+
+  @override
+  String get settings => 'Einstellungen';
+
+  @override
+  String get unreadMessages => 'Ungelesene Nachrichten';
+
+  @override
+  String get scrollToNewest => 'Zum neuesten springen';
+
+  @override
+  String get dismiss => 'Ausblenden';
+
+  @override
+  String typingNamed(String name) {
+    return '$name schreibt…';
+  }
+
+  @override
   String youPrefix(String text) {
     return 'Du: $text';
   }
@@ -294,6 +320,34 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get themeDark => 'Dunkel';
+
+  @override
+  String get languageSystemHint => 'Gilt sofort für die gesamte App.';
+
+  @override
+  String get profileUnavailable => 'Profil nicht verfügbar';
+
+  @override
+  String get privacy => 'Datenschutz';
+
+  @override
+  String get keepMeSignedIn => 'Angemeldet bleiben';
+
+  @override
+  String get keepMeSignedInHint =>
+      'Speichert deine Sitzung auf diesem Gerät, damit du den Anmeldebildschirm beim nächsten Mal überspringst.';
+
+  @override
+  String get account => 'Konto';
+
+  @override
+  String get usernameIsPermanent => 'Dein Benutzername kann nicht geändert werden.';
+
+  @override
+  String get about => 'Über';
+
+  @override
+  String get appVersion => 'App-Version';
 
   @override
   String get language => 'Sprache';

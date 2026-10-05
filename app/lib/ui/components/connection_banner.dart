@@ -4,18 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/realtime_client.dart';
+import '../design/app_colors.dart';
+import '../design/tokens.dart';
 import '../l10n.dart';
-import '../theme.dart';
 
 /// A thin strip that explains the realtime connection in plain words:
 /// connecting, reconnecting, lost (with "Retry now"), and a short "Connected"
 /// after recovering. Hidden while everything is fine.
 class ConnectionBanner extends StatefulWidget {
   const ConnectionBanner({super.key});
-
-  /// A first connection that succeeds this fast never shows a banner.
-  static const connectingGrace = Duration(milliseconds: 800);
-  static const connectedFor = Duration(seconds: 2);
 
   @override
   State<ConnectionBanner> createState() => _ConnectionBannerState();
@@ -34,7 +31,7 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
     super.initState();
     _realtime = context.read<RealtimeClient>()..addListener(_onChanged);
     _phase = _realtime.phase;
-    _graceTimer = Timer(ConnectionBanner.connectingGrace, () => setState(() => _graceOver = true));
+    _graceTimer = Timer(AppDurations.connectingGrace, () => setState(() => _graceOver = true));
   }
 
   void _onChanged() {
@@ -48,7 +45,7 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
       _showRecovered = recovered;
     });
     if (recovered) {
-      _recoveredTimer = Timer(ConnectionBanner.connectedFor, () => setState(() => _showRecovered = false));
+      _recoveredTimer = Timer(AppDurations.bannerVisible, () => setState(() => _showRecovered = false));
     }
   }
 
@@ -64,36 +61,31 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
   Widget build(BuildContext context) {
     final l = context.l10n;
     final scheme = Theme.of(context).colorScheme;
+    final palette = AppPalette.of(context);
     final (String? text, IconData icon, Color background, Color foreground, bool retry) = switch (_phase) {
       ConnectionPhase.idle => (null, Icons.cloud_off, scheme.surface, scheme.onSurface, false),
       ConnectionPhase.connecting when !_graceOver => (null, Icons.sync, scheme.surface, scheme.onSurface, false),
-      ConnectionPhase.connecting => (
-        l.connecting,
-        Icons.sync,
-        scheme.secondaryContainer,
-        scheme.onSecondaryContainer,
-        false,
-      ),
+      ConnectionPhase.connecting => (l.connecting, Icons.sync, palette.infoContainer, palette.onInfoContainer, false),
       ConnectionPhase.reconnecting => (
         l.reconnecting,
         Icons.sync,
-        scheme.secondaryContainer,
-        scheme.onSecondaryContainer,
+        palette.infoContainer,
+        palette.onInfoContainer,
         false,
       ),
       ConnectionPhase.lost => (l.connectionLost, Icons.cloud_off, scheme.errorContainer, scheme.onErrorContainer, true),
       ConnectionPhase.connected when _showRecovered => (
         l.connected,
         Icons.cloud_done_outlined,
-        scheme.tertiaryContainer,
-        scheme.onTertiaryContainer,
+        palette.successContainer,
+        palette.onSuccessContainer,
         false,
       ),
       ConnectionPhase.connected => (null, Icons.cloud_done_outlined, scheme.surface, scheme.onSurface, false),
     };
 
     return AnimatedSize(
-      duration: const Duration(milliseconds: 200),
+      duration: context.motion(AppDurations.medium),
       alignment: AlignmentDirectional.topCenter,
       child: text == null
           ? const SizedBox(width: double.infinity)
@@ -106,25 +98,23 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
                 child: Padding(
                   padding: const EdgeInsetsDirectional.fromSTEB(
                     AppSpacing.md,
-                    AppSpacing.xs + 2,
+                    AppSpacing.xs + AppSpacing.xxs,
                     AppSpacing.sm,
-                    AppSpacing.xs + 2,
+                    AppSpacing.xs + AppSpacing.xxs,
                   ),
                   child: Row(
                     children: [
-                      Icon(icon, size: 18, color: foreground),
-                      const SizedBox(width: AppSpacing.md - AppSpacing.xs),
+                      Icon(icon, size: AppSizes.iconSmall, color: foreground),
+                      const SizedBox(width: AppSpacing.smd),
                       Expanded(
-                        child: Text(text, style: TextStyle(color: foreground)),
+                        child: Text(text, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: foreground)),
                       ),
                       if (retry)
                         TextButton(
                           style: TextButton.styleFrom(foregroundColor: foreground),
                           onPressed: _realtime.reconnectNow,
                           child: Text(l.retryNow),
-                        )
-                      else
-                        const SizedBox(height: 40),
+                        ),
                     ],
                   ),
                 ),

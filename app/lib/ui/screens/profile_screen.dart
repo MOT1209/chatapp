@@ -4,10 +4,17 @@ import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../state/session_controller.dart';
 import '../../state/settings_controller.dart';
+import '../components/app_avatar.dart';
+import '../components/app_button.dart';
+import '../components/settings_tiles.dart';
+import '../components/state_views.dart';
+import '../design/tokens.dart';
 import '../l10n.dart';
-import '../widgets/state_views.dart';
-import '../widgets/user_avatar.dart';
 
+/// Who you are, plus the two things people change about themselves here: their
+/// name and photo, and the language the app speaks.
+///
+/// Appearance and privacy live on the Settings destination instead.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -15,109 +22,105 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
     final user = session.user;
-    if (user == null) return const SizedBox.shrink();
+    // The app only builds this once a session exists; without a user there is
+    // nothing to show, but say so rather than rendering a zero-height box.
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(context.l10n.profile), automaticallyImplyLeading: false),
+        body: EmptyView(icon: Icons.person_off_outlined, title: context.l10n.profileUnavailable),
+      );
+    }
+
     final theme = Theme.of(context);
     final settings = context.watch<SettingsController>();
     final l = context.l10n;
     final muted = theme.colorScheme.onSurfaceVariant;
+    final currentLanguage = settings.locale?.languageCode ?? 'system';
 
     return Scaffold(
       appBar: AppBar(title: Text(l.profile), automaticallyImplyLeading: false),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
+          constraints: const BoxConstraints(maxWidth: AppSizes.contentMaxWidth),
           child: ListView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
-              Center(child: UserAvatar(user: user, radius: 48)),
-              const SizedBox(height: 16),
-              Text(user.displayName, style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
+              Center(
+                child: UserAvatar(user: user, size: AvatarSize.large),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                user.displayName,
+                style: theme.textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: AppSpacing.xxs),
               Text(
                 '@${user.username}',
-                style: theme.textTheme.bodyLarge?.copyWith(color: muted),
+                style: theme.textTheme.bodyMedium?.copyWith(color: muted),
                 textAlign: TextAlign.center,
                 textDirection: TextDirection.ltr,
               ),
               if (user.email != null)
                 Text(
                   user.email!,
-                  style: theme.textTheme.bodyMedium?.copyWith(color: muted),
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   textAlign: TextAlign.center,
                   textDirection: TextDirection.ltr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.md),
               Card(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.edit_outlined),
-                      title: Text(l.editProfile),
-                      onTap: () => showDialog<void>(context: context, builder: (_) => const _EditProfileDialog()),
-                    ),
-                    const Divider(height: 1),
-                    _Setting(
-                      label: l.appearance,
-                      child: SegmentedButton<ThemeMode>(
-                        showSelectedIcon: false,
-                        segments: [
-                          ButtonSegment(
-                            value: ThemeMode.system,
-                            label: Text(l.themeSystem),
-                            icon: const Icon(Icons.brightness_auto),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.light,
-                            label: Text(l.themeLight),
-                            icon: const Icon(Icons.light_mode),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.dark,
-                            label: Text(l.themeDark),
-                            icon: const Icon(Icons.dark_mode),
-                          ),
-                        ],
-                        selected: {settings.themeMode},
-                        onSelectionChanged: (s) => settings.setThemeMode(s.first),
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    _Setting(
-                      label: l.language,
-                      // Chips wrap on narrow phones, where four segments would not fit.
-                      child: Wrap(
-                        key: const Key('profile.language'),
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          // Language names are shown in their own language so they're always findable.
-                          for (final (code, label) in [
-                            ('system', l.languageSystem),
-                            ('ar', 'العربية'),
-                            ('en', 'English'),
-                            ('de', 'Deutsch'),
-                          ])
-                            ChoiceChip(
-                              label: Text(label),
-                              selected: (settings.locale?.languageCode ?? 'system') == code,
-                              onSelected: (_) => settings.setLocale(code == 'system' ? null : Locale(code)),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
+                child: ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: Text(l.editProfile),
+                  onTap: () => showDialog<void>(context: context, builder: (_) => const EditProfileDialog()),
                 ),
               ),
-              const SizedBox(height: 16),
+              SettingsSection(
+                title: l.language,
+                icon: Icons.translate,
+                subtitle: l.languageSystemHint,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    // Language names are shown in their own language so they are
+                    // always findable, whatever the current locale is.
+                    child: Wrap(
+                      key: const Key('profile.language'),
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: [
+                        for (final (code, label) in [
+                          ('system', l.languageSystem),
+                          ('ar', 'العربية'),
+                          ('en', 'English'),
+                          ('de', 'Deutsch'),
+                        ])
+                          ChoiceChip(
+                            label: Text(label),
+                            selected: currentLanguage == code,
+                            onSelected: (_) => settings.setLocale(code == 'system' ? null : Locale(code)),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: theme.colorScheme.error,
-                  minimumSize: const Size.fromHeight(48),
+                  side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.4)),
                 ),
                 onPressed: () => _confirmLogout(context),
                 icon: const Icon(Icons.logout),
                 label: Text(l.logout),
               ),
+              const SizedBox(height: AppSpacing.lg),
             ],
           ),
         ),
@@ -128,48 +131,27 @@ class ProfileScreen extends StatelessWidget {
   Future<void> _confirmLogout(BuildContext context) async {
     final session = context.read<SessionController>();
     final l = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l.logoutConfirmTitle),
-        content: Text(l.logoutConfirmBody),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(l.logout)),
-        ],
-      ),
+    final confirmed = await confirmDialog(
+      context,
+      title: l.logoutConfirmTitle,
+      message: l.logoutConfirmBody,
+      confirmLabel: l.logout,
+      destructive: true,
     );
-    if (confirmed ?? false) await session.logout();
+    if (confirmed) await session.logout();
   }
 }
 
-class _Setting extends StatelessWidget {
-  const _Setting({required this.label, required this.child});
-  final String label;
-  final Widget child;
+/// Edits the display name and avatar URL. Validation mirrors the server's
+/// (`PUT /api/users/me`), so the form fails the same way the API would.
+class EditProfileDialog extends StatefulWidget {
+  const EditProfileDialog({super.key});
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        SizedBox(width: double.infinity, child: child),
-      ],
-    ),
-  );
+  State<EditProfileDialog> createState() => _EditProfileDialogState();
 }
 
-class _EditProfileDialog extends StatefulWidget {
-  const _EditProfileDialog();
-
-  @override
-  State<_EditProfileDialog> createState() => _EditProfileDialogState();
-}
-
-class _EditProfileDialogState extends State<_EditProfileDialog> {
+class _EditProfileDialogState extends State<EditProfileDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _displayName;
   late final TextEditingController _avatarUrl;
@@ -223,16 +205,17 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
     return AlertDialog(
       title: Text(l.editProfile),
       content: SizedBox(
-        width: 400,
+        width: AppSizes.authMaxWidth,
         child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_error != null) ...[ErrorBanner(message: _error!), const SizedBox(height: 16)],
+              if (_error != null) ...[ErrorBanner(message: _error!), const SizedBox(height: AppSpacing.md)],
               TextFormField(
                 controller: _displayName,
                 enabled: !_saving,
+                textInputAction: TextInputAction.next,
                 decoration: InputDecoration(labelText: l.displayName, errorText: _fieldErrors['displayName']),
                 validator: (v) {
                   final value = v?.trim() ?? '';
@@ -241,7 +224,7 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.md),
               TextFormField(
                 controller: _avatarUrl,
                 enabled: !_saving,
@@ -255,11 +238,10 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                 validator: (v) {
                   final value = v?.trim() ?? '';
                   if (value.isEmpty) return null;
+                  if (value.length > 2048) return l.urlTooLong;
                   final uri = Uri.tryParse(value);
                   final valid = uri != null && (uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isNotEmpty;
-                  if (!valid) return l.enterValidUrl;
-                  if (value.length > 2048) return l.urlTooLong;
-                  return null;
+                  return valid ? null : l.enterValidUrl;
                 },
               ),
             ],
@@ -268,12 +250,7 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
       ),
       actions: [
         TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: Text(l.cancel)),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(l.save),
-        ),
+        LoadingButton(label: l.save, isLoading: _saving, expand: false, onPressed: _save),
       ],
     );
   }

@@ -24,6 +24,26 @@ void main() {
 
   Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 10));
 
+  /// Polls a condition instead of sleeping a fixed duration. A reconnect chains
+  /// stream callbacks, awaited futures and a zero-duration timer, so how many
+  /// event-loop turns it needs is not predictable; a fixed sleep makes these
+  /// tests flaky rather than wrong.
+  Future<void> waitUntil(bool Function() condition, {required String reason}) async {
+    for (var i = 0; i < 200 && !condition(); i++) {
+      await settle();
+    }
+    expect(condition(), isTrue, reason: reason);
+  }
+
+  Future<void> waitForLost(RealtimeClient client) =>
+      waitUntil(() => client.phase == ConnectionPhase.lost, reason: 'the client never gave up as "lost"');
+
+  Future<void> waitForConnected(RealtimeClient client) =>
+      waitUntil(() => client.status == RealtimeStatus.connected, reason: 'the client never finished its handshake');
+
+  Future<void> waitForIdle(RealtimeClient client) =>
+      waitUntil(() => client.phase == ConnectionPhase.idle, reason: 'the client never stopped');
+
   setUp(() {
     backend = FakeBackend()..addUser('ahmad');
     tokens = InMemoryTokenStorage(Tokens(backend.issueToken('u_ahmad'), 'r'));
@@ -36,7 +56,7 @@ void main() {
     client.frames.listen((f) => frames.add(f.type));
 
     client.connect();
-    await settle();
+    await waitForConnected(client);
 
     expect(backend.sockets.single.sent.first['type'], 'auth');
     expect(client.status, RealtimeStatus.connected);
@@ -46,23 +66,22 @@ void main() {
 
   test('reconnects after the server drops the connection', () async {
     final client = build()..connect();
-    await settle();
+    await waitForConnected(client);
     backend.sockets.single.serverClose(1006);
-    await settle();
+    await waitUntil(() => backend.sockets.length == 2, reason: 'no replacement socket was opened');
 
-    expect(backend.sockets, hasLength(2));
     expect(client.status, RealtimeStatus.connected);
     client.dispose();
   });
 
   test('close code 4401 refreshes tokens before reconnecting', () async {
     final client = build()..connect();
-    await settle();
+    await waitForConnected(client);
     backend.sockets.single.serverClose(4401);
-    await settle();
+    await waitUntil(() => backend.sockets.length == 2, reason: 'the client did not reconnect after refreshing');
 
     expect(refreshCalls, 1);
-    expect(backend.sockets, hasLength(2));
+    expect(client.status, RealtimeStatus.connected);
     client.dispose();
   });
 
@@ -83,9 +102,9 @@ void main() {
 
   test('stops reconnecting when the refresh is rejected', () async {
     final client = build(refresh: () async => false)..connect();
-    await settle();
+    await waitForConnected(client);
     backend.sockets.single.serverClose(4401);
-    await settle();
+    await waitForIdle(client);
 
     expect(backend.sockets, hasLength(1));
     expect(client.status, RealtimeStatus.disconnected);
@@ -94,7 +113,7 @@ void main() {
 
   test('disconnect closes the socket and does not reconnect', () async {
     final client = build()..connect();
-    await settle();
+    await waitForConnected(client);
     client.disconnect();
     await settle();
 
@@ -116,7 +135,7 @@ void main() {
       expect(client.phase, ConnectionPhase.idle);
       client.connect();
       expect(client.phase, ConnectionPhase.connecting);
-      await settle();
+      await waitForConnected(client);
       expect(client.phase, ConnectionPhase.connected);
       client.disconnect();
       expect(client.phase, ConnectionPhase.idle);
@@ -125,18 +144,18 @@ void main() {
 
     test('a drop is "reconnecting"; repeated failures become "lost"; recovery is "connected"', () async {
       final client = build()..connect();
-      await settle();
+      await waitForConnected(client);
       final phases = <ConnectionPhase>[];
       client.addListener(() => phases.add(client.phase));
 
       backend.refuseConnections = true;
       backend.sockets.single.serverClose(1006);
-      await settle();
+      await waitForLost(client);
       expect(phases.first, ConnectionPhase.reconnecting);
       expect(client.phase, ConnectionPhase.lost);
 
       backend.refuseConnections = false;
-      await settle();
+      await waitForConnected(client);
       expect(client.phase, ConnectionPhase.connected);
       client.dispose();
     });
@@ -144,7 +163,7 @@ void main() {
     test('"Retry now" abandons a hanging attempt and connects', () async {
       backend.refuseConnections = true;
       final client = build()..connect();
-      await settle();
+      await waitForLost(client);
       expect(client.phase, ConnectionPhase.lost);
 
       // The next attempt hangs in the handshake, which keeps the status `connecting`.
@@ -152,15 +171,18 @@ void main() {
         ..refuseConnections = false
         ..hangConnections = true;
       client.reconnectNow();
-      await settle();
+      await waitUntil(
+        () => backend.sockets.length == 1 && client.status == RealtimeStatus.connecting,
+        reason: 'the retry never reached the hanging handshake',
+      );
       expect(client.status, RealtimeStatus.connecting);
       final hanging = backend.sockets.single;
 
       backend.hangConnections = false;
       client.reconnectNow();
-      await settle();
+      await waitUntil(() => backend.sockets.length == 2, reason: 'the hanging socket was not replaced');
       expect(hanging.open, isFalse);
-      expect(backend.sockets, hasLength(2));
+      await waitForConnected(client);
       expect(client.phase, ConnectionPhase.connected);
       client.dispose();
     });
@@ -168,7 +190,7 @@ void main() {
     test('disconnect while waiting to retry tells listeners it is idle', () async {
       backend.refuseConnections = true;
       final client = build()..connect();
-      await settle();
+      await waitForLost(client);
       expect(client.phase, ConnectionPhase.lost);
       var notified = false;
       client.addListener(() => notified = true);
@@ -186,7 +208,7 @@ void main() {
       client.addListener(() => phases.add(client.phase));
 
       backend.sockets.single.serverClose(4401);
-      await settle();
+      await waitForIdle(client);
       expect(phases.last, ConnectionPhase.idle);
       client.dispose();
     });
@@ -194,7 +216,7 @@ void main() {
     test('missing tokens end in "lost" with a retry, not endless "connecting"', () async {
       await tokens.clear();
       final client = build()..connect();
-      await settle();
+      await waitForLost(client);
       expect(client.phase, ConnectionPhase.lost);
       expect(backend.sockets, isEmpty);
       client.dispose();
@@ -205,7 +227,7 @@ void main() {
       final client = build()..connect();
       final phases = <ConnectionPhase>{};
       client.addListener(() => phases.add(client.phase));
-      await settle();
+      await waitForLost(client);
       expect(client.phase, ConnectionPhase.lost);
       expect(phases, isNot(contains(ConnectionPhase.reconnecting)));
       client.dispose();

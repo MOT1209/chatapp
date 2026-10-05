@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../state/session_controller.dart';
 import '../l10n.dart';
-import '../widgets/state_views.dart';
+import '../components/state_views.dart';
 import 'auth_layout.dart';
 
 /// Client-side rules mirror contract §3.1 so most mistakes never reach the server.

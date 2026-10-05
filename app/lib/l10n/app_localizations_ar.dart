@@ -189,6 +189,32 @@ class AppLocalizationsAr extends AppLocalizations {
   String get noPeopleFound => 'لم يُعثر على أحد';
 
   @override
+  String get noPeopleFoundHint => 'جرّب اسمًا أو معرّفًا آخر، بحرفين على الأقل.';
+
+  @override
+  String get startNewChatTitle => 'ابحث عن شخص للتحدث معه';
+
+  @override
+  String get contacts => 'جهات الاتصال';
+
+  @override
+  String get settings => 'الإعدادات';
+
+  @override
+  String get unreadMessages => 'رسائل غير مقروءة';
+
+  @override
+  String get scrollToNewest => 'انتقل إلى الأحدث';
+
+  @override
+  String get dismiss => 'إخفاء';
+
+  @override
+  String typingNamed(String name) {
+    return '$name يكتب الآن…';
+  }
+
+  @override
   String youPrefix(String text) {
     return 'أنت: $text';
   }
@@ -293,6 +319,33 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get themeDark => 'داكن';
+
+  @override
+  String get languageSystemHint => 'يُطبَّق على التطبيق بالكامل فورًا.';
+
+  @override
+  String get profileUnavailable => 'الملف الشخصي غير متاح';
+
+  @override
+  String get privacy => 'الخصوصية';
+
+  @override
+  String get keepMeSignedIn => 'إبقائي مسجّلة الدخول';
+
+  @override
+  String get keepMeSignedInHint => 'يحفظ جلستك على هذا الجهاز لتتخطّى شاشة الدخول في المرة القادمة.';
+
+  @override
+  String get account => 'الحساب';
+
+  @override
+  String get usernameIsPermanent => 'لا يمكن تغيير اسم المستخدم.';
+
+  @override
+  String get about => 'حول التطبيق';
+
+  @override
+  String get appVersion => 'إصدار التطبيق';
 
   @override
   String get language => 'اللغة';

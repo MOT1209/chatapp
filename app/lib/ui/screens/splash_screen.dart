@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n.dart';
-import '../widgets/state_views.dart';
+import '../components/state_views.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key, this.error, required this.onRetry});
