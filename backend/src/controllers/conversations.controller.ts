@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { validationError } from '../lib/errors.js';
 import * as conversationService from '../services/conversation.service.js';
 import * as messageService from '../services/message.service.js';
