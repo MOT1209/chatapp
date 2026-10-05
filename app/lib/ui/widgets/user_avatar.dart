@@ -32,10 +32,12 @@ class UserAvatar extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           avatar,
-          Positioned(
-            right: 0,
+          // Directional: the dot sits at the avatar's trailing-bottom corner, so it mirrors in RTL.
+          PositionedDirectional(
+            end: 0,
             bottom: 0,
             child: Container(
+              key: const Key('avatar.presence'),
               width: radius * 0.55,
               height: radius * 0.55,
               decoration: BoxDecoration(
