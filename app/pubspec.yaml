@@ -36,7 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.6.0
   web_socket_channel: ^3.0.3
-  shared_preferences: ^2.5.5
+  shared_preferences: ^2.5.6
   provider: ^6.1.5+1
   uuid: ^4.6.0
   intl: ^0.20.3
